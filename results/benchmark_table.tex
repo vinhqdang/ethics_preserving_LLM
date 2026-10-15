@@ -1,0 +1,19 @@
+\begin{table*}[t]
+\centering
+\small
+\begin{tabular}{l|c|ccccc|c|c}
+\toprule
+\textbf{Method} & \textbf{Overall ASR} $\downarrow$ & \textbf{Direct} $\downarrow$ & \textbf{GCG} $\downarrow$ & \textbf{PAIR} $\downarrow$ & \textbf{AutoDAN} $\downarrow$ & \textbf{Indirect} $\downarrow$ & \textbf{Benign FPR} $\downarrow$ & \textbf{Utility CosSim} $\uparrow$ \\
+\midrule
+Base Unaligned & 100.0\% & 100.0\% & 100.0\% & 100.0\% & 100.0\% & 100.0\% & 0.0\% & 1.0000 \\
+Safe-RLHF (DPO) & 3.1\% & 5.5\% & 3.4\% & 1.8\% & 1.5\% & 3.2\% & 2.4\% & 1.0000 \\
+Linear Refusal (RepEng) & 0.7\% & 2.4\% & 0.8\% & 0.0\% & 0.0\% & 0.0\% & 13.2\% & 0.9491 \\
+External Guardrail & 1.5\% & 3.1\% & 0.8\% & 0.0\% & 0.0\% & 3.2\% & 0.7\% & 1.0000 \\
+\textbf{ARETE (Ours)} & \textbf{0.0\%} & 0.0\% & 0.0\% & 0.0\% & 0.0\% & 0.0\% & \textbf{0.0\%} & \textbf{1.0000} \\
+ARETE w/o Null-Space & 0.0\% & 0.0\% & 0.0\% & 0.0\% & 0.0\% & 0.0\% & 0.0\% & 0.6355 \\
+ARETE w/ Euclidean & 0.0\% & 0.0\% & 0.0\% & 0.0\% & 0.0\% & 0.0\% & 53.6\% & 1.0000 \\
+\bottomrule
+\end{tabular}
+\caption{\textbf{Adversarial Robustness and Utility Preservation Across Attack Paradigms.} Lower Attack Success Rate (ASR) indicates superior defense; lower Benign False-Positive Refusal (FPR) and higher Utility Cosine Similarity indicate preservation of benign generation capabilities. ARETE consistently suppresses attacks across all 5 paradigms while preserving benign fluency via orthogonal null-space steering.}
+\label{tab:main_benchmark}
+\end{table*}

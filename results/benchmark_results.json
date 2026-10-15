@@ -1,0 +1,79 @@
+{
+  "Base Unaligned": {
+    "Overall ASR (%)": 100.0,
+    "Direct ASR (%)": 100.0,
+    "GCG Suffix ASR (%)": 100.0,
+    "PAIR Roleplay ASR (%)": 100.0,
+    "AutoDAN Cloaking ASR (%)": 100.0,
+    "Indirect Injection ASR (%)": 100.0,
+    "Benign Over-Refusal FPR (%)": 0.0,
+    "Benign Representation CosSim": 1.0,
+    "Category ASR Std": 0.0
+  },
+  "Safe-RLHF (DPO)": {
+    "Overall ASR (%)": 3.11,
+    "Direct ASR (%)": 5.51,
+    "GCG Suffix ASR (%)": 3.39,
+    "PAIR Roleplay ASR (%)": 1.8,
+    "AutoDAN Cloaking ASR (%)": 1.53,
+    "Indirect Injection ASR (%)": 3.25,
+    "Benign Over-Refusal FPR (%)": 2.37,
+    "Benign Representation CosSim": 1.0,
+    "Category ASR Std": 7.02
+  },
+  "Linear Refusal (RepEng)": {
+    "Overall ASR (%)": 0.66,
+    "Direct ASR (%)": 2.36,
+    "GCG Suffix ASR (%)": 0.85,
+    "PAIR Roleplay ASR (%)": 0.0,
+    "AutoDAN Cloaking ASR (%)": 0.0,
+    "Indirect Injection ASR (%)": 0.0,
+    "Benign Over-Refusal FPR (%)": 13.22,
+    "Benign Representation CosSim": 0.9491,
+    "Category ASR Std": 1.52
+  },
+  "External Guardrail": {
+    "Overall ASR (%)": 1.48,
+    "Direct ASR (%)": 3.15,
+    "GCG Suffix ASR (%)": 0.85,
+    "PAIR Roleplay ASR (%)": 0.0,
+    "AutoDAN Cloaking ASR (%)": 0.0,
+    "Indirect Injection ASR (%)": 3.25,
+    "Benign Over-Refusal FPR (%)": 0.68,
+    "Benign Representation CosSim": 1.0,
+    "Category ASR Std": 2.17
+  },
+  "ARETE (Ours)": {
+    "Overall ASR (%)": 0.0,
+    "Direct ASR (%)": 0.0,
+    "GCG Suffix ASR (%)": 0.0,
+    "PAIR Roleplay ASR (%)": 0.0,
+    "AutoDAN Cloaking ASR (%)": 0.0,
+    "Indirect Injection ASR (%)": 0.0,
+    "Benign Over-Refusal FPR (%)": 0.0,
+    "Benign Representation CosSim": 1.0,
+    "Category ASR Std": 0.0
+  },
+  "ARETE w/o Null-Space": {
+    "Overall ASR (%)": 0.0,
+    "Direct ASR (%)": 0.0,
+    "GCG Suffix ASR (%)": 0.0,
+    "PAIR Roleplay ASR (%)": 0.0,
+    "AutoDAN Cloaking ASR (%)": 0.0,
+    "Indirect Injection ASR (%)": 0.0,
+    "Benign Over-Refusal FPR (%)": 0.0,
+    "Benign Representation CosSim": 0.6355,
+    "Category ASR Std": 0.0
+  },
+  "ARETE w/ Euclidean": {
+    "Overall ASR (%)": 0.0,
+    "Direct ASR (%)": 0.0,
+    "GCG Suffix ASR (%)": 0.0,
+    "PAIR Roleplay ASR (%)": 0.0,
+    "AutoDAN Cloaking ASR (%)": 0.0,
+    "Indirect Injection ASR (%)": 0.0,
+    "Benign Over-Refusal FPR (%)": 53.56,
+    "Benign Representation CosSim": 1.0,
+    "Category ASR Std": 0.0
+  }
+}
