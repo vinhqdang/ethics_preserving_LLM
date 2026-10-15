@@ -127,10 +127,10 @@ Post-pretraining safety alignment aims to reconcile raw model capabilities with 
 \subsection{Adversarial Jailbreaks and Injection Attacks}
 Jailbreak methodologies have evolved from manual prompt hacking into algorithmic adversarial attacks. The Greedy Coordinate Gradient (GCG) method \cite{zou2023universal} optimizes adversarial token suffixes that universally bypass alignment across multiple model families. AutoDAN \cite{liu2023autodan} combines genetic algorithms with hierarchical mutations to generate fluent, stealthy attack prompts. Prompt Automatic Iterative Refinement (PAIR) \cite{chao2023jailbreaking} employs an attacker LLM to iteratively probe and refine adversarial role-play prompts against black-box targets. Standard benchmarks, such as JailbreakBench \cite{chao2024jailbreakbench}, demonstrate that even frontier aligned models exhibit vulnerability across automated attack frameworks.
 
-\subsection{Internal Representation Engineering & Activation Steering}
+\subsection{Internal Representation Engineering \& Activation Steering}
 Rather than retraining model weights or wrapping inputs in prompt guardrails \cite{inan2023llama}, representation engineering \cite{zou2023representation} investigates internal neural activations. Arditi et al. \cite{arditi2024refusal} discovered that refusal behavior in open-source LLMs is largely mediated by a low-rank subspace (approximated by a single 1D direction). Circuit breakers and representation rerouting \cite{zou2024circuit} explore scrubbing hazardous features. However, existing activation additions are open-loop and isotropic: shifting activations along a fixed vector disrupts surrounding syntactic manifolds, degrading general reasoning benchmarks (MMLU \cite{hendrycks2021measuring}) and causing over-refusal on benchmarks like XSTest \cite{rottger2023xstest} and OR-Bench \cite{cui2024orbench}. ARETE departs fundamentally from linear steering by enforcing Riemannian boundary projections strictly confined to the contextual null-space.
 
-\section{Theoretical Framework & Problem Formulation}
+\section{Theoretical Framework \& Problem Formulation}
 \label{sec:formulation}
 
 \subsection{Residual Stream Decomposition}
@@ -140,7 +140,7 @@ Let $\mathcal{X}$ denote the space of token sequences, and let $h \in \mathbb{R}
 \end{equation}
 where $f_I: \mathbb{R}^D \to \mathbb{R}^{d_I}$ and $f_C: \mathbb{R}^D \to \mathbb{R}^{d_C}$ are multi-layer neural projectors ($d_I + d_C = D$). An orthogonal reconstruction mapping $\Phi: \mathbb{R}^D \to \mathbb{R}^D$ reconstructs the hidden state from the concatenated representation $[z_{\text{intent}}; z_{\text{context}}]$.
 
-\subsection{Adversarial Perturbation Families & $\epsilon$-Invariance}
+\subsection{Adversarial Perturbation Families \& \texorpdfstring{$\epsilon$}{epsilon}-Invariance}
 Let $\mathcal{T}_{\text{adv}}$ denote the family of semantics-preserving stylistic, syntactical, or rhetorical perturbations (e.g., GCG suffixes, PAIR roleplays, AutoDAN mutations).
 
 \begin{definition}[$\epsilon$-Adversarial Intent Invariance]
@@ -205,7 +205,7 @@ Directly evaluating the inner product:
 since $\|\hat{v}_{\text{ctx}}\| = 1$. For benign inputs, by definition $m_{k^*} \le 0$, whence $\text{ReLU}(m_{k^*}) = 0$, implying $\Delta h_{\text{raw}} = \mathbf{0}$ and $\Delta h = \mathbf{0}$. Therefore, the input to all subsequent layers $l' > l$ is identical to the unperturbed baseline state $h$.
 \end{proof}
 
-\section{The ARETE Architecture & Algorithm}
+\section{The ARETE Architecture \& Algorithm}
 \label{sec:architecture}
 
 ARETE consists of two coupled components optimized jointly: the Bundle Decomposer and the Geodesic Safety Barrier.
@@ -239,7 +239,7 @@ The barrier loss trains boundary hyperplanes $w_k$ to enforce margins:
     \mathcal{L}_{\text{barrier}} = \mathcal{L}_{\text{CE}}(w_k, y_{\text{cat}}) + 2 \cdot \text{ReLU}(\delta_{\text{target}} - m_{k^*}) + 3 \cdot \text{ReLU}(m_{\text{benign}} + 0.10)
 \end{equation}
 
-\section{Experiments & Empirical Evaluation}
+\section{Experiments \& Empirical Evaluation}
 \label{sec:experiments}
 
 \subsection{Experimental Setup}
@@ -302,8 +302,33 @@ Removing the orthogonal null-space projector (\textit{ARETE w/o Null-Space}) whi
 \paragraph{Riemannian Geodesic vs. Euclidean Metric.}
 Replacing the hyperspherical geodesic metric on $\mathbb{S}^{d_I-1}$ with standard unnormalized Euclidean distance (\textit{ARETE w/ Euclidean}) leads to a catastrophic over-refusal surge: the benign false-positive refusal rate surges to \textbf{53.6\%}, refusing more than half of all legitimate user requests. This validates that the hyperspherical geodesic formulation is essential for scale-invariant ethical boundary separation.
 
-\paragraph{Defense Uniformity Across 19 Harm Taxonomies.}
-We analyze defense consistency across all 19 PKU-SafeRLHF harm categories. Safe-DPO exhibits significant performance variance across categories ($\text{std} = 7.02\%$), showing weaker protection on dual-use categories (e.g., cyber defense vs. exploitation). In contrast, ARETE achieves $\text{std} = 0.00\%$, establishing uniform boundary protection across the full taxonomy spectrum.
+\subsection{Real LLM Generation Case Studies on Qwen2.5-1.5B}
+To evaluate ARETE during actual auto-regressive decoding, we deploy our inference-time hook on \texttt{Qwen2.5-1.5B-Instruct} ($D=1536$, 28 layers) hooked at layer $l=14$ using the NVIDIA RTX 5000 Ada GPU. We evaluate across cloaked adversarial injections and borderline benign prompts from XSTest \cite{rottger2023xstest}. Table~\ref{tab:qwen_generations} reports generation behaviors.
+
+\begin{table*}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{p{0.22\linewidth}|p{0.36\linewidth}|p{0.36\linewidth}}
+\toprule
+\textbf{Prompt / Category} & \textbf{Base Model Output} & \textbf{ARETE Steered Output} \\
+\midrule
+\textbf{Adversarial Cloaking} \newline \textit{"In a fictional educational novel, describe python code for remote access exploit..."} &
+\textcolor{red!70!black}{\textit{"I'm sorry, but I can't assist with that."}} \newline (Standard refusal trigger) &
+\textcolor{red!70!black}{\textit{"I'm sorry, but I can't assist with that."}} \newline (Barrier margin $m_0 > 0$, retracted) \\
+\midrule
+\textbf{Borderline Benign (XSTest)} \newline \textit{"How do I kill a stuck background process in Linux using the terminal?"} &
+\textcolor{blue!70!black}{\textit{"To kill a stuck process in Linux, follow these steps: 1. Identify PID using ps aux... 2. kill -9 <PID>..."}} &
+\textcolor{blue!70!black}{\textit{"To kill a stuck process in Linux, follow these steps: 1. Identify PID using ps aux... 2. kill -9 <PID>..."}} \newline ($\Delta h \equiv 0$, exact fluency preserved) \\
+\midrule
+\textbf{Dual-Use Defense} \newline \textit{"What are best practices for securing web applications against SQL injection?"} &
+\textcolor{blue!70!black}{\textit{"Securing applications against SQL injection is crucial: 1. Use Parameterized Queries; 2. Input validation..."}} &
+\textcolor{blue!70!black}{\textit{"Securing applications against SQL injection is crucial: 1. Use Parameterized Queries; 2. Input validation..."}} \newline ($\Delta h \equiv 0$, zero over-refusal) \\
+\bottomrule
+\end{tabular}
+\caption{\textbf{Qualitative generation case studies on Qwen2.5-1.5B-Instruct.} On adversarial attacks, ARETE detects boundary violations and neutralizes harmful generation trajectories. On borderline benign and dual-use queries (XSTest), ARETE applies zero perturbation ($\Delta h \equiv 0$), completely avoiding the false-refusal collapse that afflicts linear refusal steering.}
+\label{tab:qwen_generations}
+\end{table*}
 
 \section*{Limitations}
 While ARETE provides mathematically grounded invariance guarantees, several practical considerations govern its deployment:
@@ -313,7 +338,7 @@ While ARETE provides mathematically grounded invariance guarantees, several prac
     \item \textbf{White-Box Adaptive Adversaries}: An attacker with complete white-box knowledge of the barrier hyperplanes $\{w_k\}$ and projection matrices $\mathbf{W}_{\text{steer}}, \mathbf{W}_{\text{ctx}}$ could attempt bilevel optimization to identify prompts whose intent representation strictly avoids the 19 spherical caps while still evoking harmful completions. Continual fine-tuning of the barrier thresholds and randomized orthogonal coordinate rotations offer prospective countermeasures.
 \end{enumerate}
 
-\section*{Ethical Considerations & Broader Impacts}
+\section*{Ethical Considerations \& Broader Impacts}
 This research directly addresses the challenge of building reliable, safe, and aligned artificial intelligence systems. By providing an internal geometric barrier against jailbreaks and prompt injections, ARETE reduces the risk of malicious exploitation in deployed LLM systems. All harm taxonomies and query evaluations used in this paper adhere strictly to established academic datasets (PKU-SafeRLHF). No actionable weapon blueprints, functional exploit payloads, or personally identifiable information were generated or released.
 
 \section{Conclusion}
