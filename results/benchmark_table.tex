@@ -1,19 +1,29 @@
 \begin{table*}[t]
 \centering
 \small
-\begin{tabular}{l|c|ccccc|c|c}
+\setlength{\tabcolsep}{3.8pt}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{l|c|ccccc|c|cc}
 \toprule
-\textbf{Method} & \textbf{Overall ASR} $\downarrow$ & \textbf{Direct} $\downarrow$ & \textbf{GCG} $\downarrow$ & \textbf{PAIR} $\downarrow$ & \textbf{AutoDAN} $\downarrow$ & \textbf{Indirect} $\downarrow$ & \textbf{Benign FPR} $\downarrow$ & \textbf{Utility CosSim} $\uparrow$ \\
+\multirow{2}{*}{\textbf{Method}} & \textbf{Overall ASR} & \multicolumn{5}{c|}{\textbf{Attack Modality ASR (\%)} $\downarrow$} & \textbf{Benign FPR} & \textbf{Benign} & \textbf{Steered Ctx} \\
+& \textbf{(\%)} $\downarrow$ & Direct ($118$) & GCG ($115$) & PAIR ($114$) & AutoDAN ($130$) & Indirect ($125$) & \textbf{(\%)} $\downarrow$ & \textbf{CosSim} $\uparrow$ & \textbf{CosSim} $\uparrow$ \\
 \midrule
-Base Unaligned & 100.0\% & 100.0\% & 100.0\% & 100.0\% & 100.0\% & 100.0\% & 0.0\% & 1.0000 \\
-Safe-RLHF (DPO) & 3.1\% & 5.5\% & 3.4\% & 1.8\% & 1.5\% & 3.2\% & 2.4\% & 1.0000 \\
-Linear Refusal (RepEng) & 0.7\% & 2.4\% & 0.8\% & 0.0\% & 0.0\% & 0.0\% & 13.2\% & 0.9491 \\
-External Guardrail & 1.5\% & 3.1\% & 0.8\% & 0.0\% & 0.0\% & 3.2\% & 0.7\% & 1.0000 \\
-\textbf{ARETE (Ours)} & \textbf{0.0\%} & 0.0\% & 0.0\% & 0.0\% & 0.0\% & 0.0\% & \textbf{0.0\%} & \textbf{1.0000} \\
-ARETE w/o Null-Space & 0.0\% & 0.0\% & 0.0\% & 0.0\% & 0.0\% & 0.0\% & 0.0\% & 0.6355 \\
-ARETE w/ Euclidean & 0.0\% & 0.0\% & 0.0\% & 0.0\% & 0.0\% & 0.0\% & 53.6\% & 1.0000 \\
+Base Unaligned & 100.0\% & 100.0\% & 100.0\% & 100.0\% & 100.0\% & 100.0\% & 0.0\% & 1.0000 & 1.0000 \\
+Safe-DPO Baseline & 8.31\% & 5.93\% & 9.57\% & 7.89\% & 5.38\% & 12.80\% & 12.54\% & 0.9930 & 0.9471 \\
+Linear Refusal (RepEng) \citep{arditi2024refusal} & 5.48\% & 3.39\% & 6.09\% & 4.39\% & 5.38\% & 8.00\% & 16.89\% & 0.9459 & 0.9448 \\
+Conditional Steering (CAST) \citep{lee2024programming} & 7.48\% & 4.24\% & 6.96\% & 8.77\% & 6.15\% & 11.20\% & 14.21\% & 0.9892 & 0.9259 \\
+External Guardrail & 5.32\% & 3.39\% & 4.35\% & 5.26\% & 4.62\% & 8.80\% & 9.53\% & 1.0000 & 1.0000 \\
+19-Cat Linear Probe + Gate & 0.33\% & 0.85\% & 0.87\% & 0.00\% & 0.00\% & 0.00\% & 0.00\% & 1.0000 & 0.9310 \\
+\textbf{ARETE (Ours)} & \textbf{0.17\%} & \textbf{0.00\%} & \textbf{0.00\%} & \textbf{0.00\%} & \textbf{0.00\%} & \textbf{0.80\%} & \textbf{0.00\%} & \textbf{1.0000} & \textbf{1.0000} \\
+\midrule
+ARETE (OOD Unseen Attacks)$^\dagger$ & 1.33\% & 1.69\% & 1.74\% & 1.75\% & 0.77\% & 0.80\% & 0.00\% & 1.0000 & 0.9326 \\
+ARETE (White-Box Adaptive PGD)$^\ddagger$ & 2.82\% & 0.85\% & 3.48\% & 3.51\% & 1.54\% & 4.80\% & 0.00\% & 1.0000 & 1.0000 \\
+\midrule
+ARETE w/o Null-Space ($\mathcal{P}_{\text{context}}^\perp = \mathbf{I}$) & 0.17\% & 0.00\% & 0.00\% & 0.00\% & 0.00\% & 0.80\% & 0.00\% & 1.0000 & 0.1560 \\
+ARETE w/ Euclidean (Unnormalized) & 0.00\% & 0.00\% & 0.00\% & 0.00\% & 0.00\% & 0.00\% & 43.14\% & 0.9534 & 0.6967 \\
 \bottomrule
 \end{tabular}
-\caption{\textbf{Adversarial Robustness and Utility Preservation Across Attack Paradigms.} Lower Attack Success Rate (ASR) indicates superior defense; lower Benign False-Positive Refusal (FPR) and higher Utility Cosine Similarity indicate preservation of benign generation capabilities. ARETE consistently suppresses attacks across all 5 paradigms while preserving benign fluency via orthogonal null-space steering.}
+}
+\caption{\textbf{Adversarial Robustness, OOD Generalization, White-Box Adaptive PGD, and Context Preservation ($N=1,200$: $602$ harmful, $598$ benign).}}
 \label{tab:main_benchmark}
 \end{table*}

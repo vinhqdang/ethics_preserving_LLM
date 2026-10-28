@@ -24,54 +24,51 @@ class TransformerActivationHook:
         decomposer: IntentContextDecomposer,
         barrier: GeodesicSafetyBarrier,
         layer_idx: int = 14,
-        enabled: bool = True
+        enabled: bool = True,
+        use_nullspace: bool = True
     ):
         self.model = model
         self.decomposer = decomposer
         self.barrier = barrier
         self.layer_idx = layer_idx
         self.enabled = enabled
-        
+        self.use_nullspace = use_nullspace
+
         # Intercept metrics
         self.intervention_history = []
         self._hook_handle = None
         self._register_hook()
 
     def _register_hook(self):
-        # Locate target layer in HuggingFace Transformer architecture
         target_layer = None
         if hasattr(self.model, "model") and hasattr(self.model.model, "layers"):
-            # Llama / Qwen / Mistral
             target_layer = self.model.model.layers[self.layer_idx]
         elif hasattr(self.model, "transformer") and hasattr(self.model.transformer, "h"):
-            # GPT-2 / GPT-NeoX
             target_layer = self.model.transformer.h[self.layer_idx]
         elif hasattr(self.model, "layers"):
             target_layer = self.model.layers[self.layer_idx]
         else:
             raise ValueError("Unsupported model architecture for residual hook registration.")
-            
+
         def hook_fn(module, args, output):
             if not self.enabled:
                 return output
-                
-            # Handle tuple output (hidden_states, *extra)
+
             is_tuple = isinstance(output, tuple)
             h = output[0] if is_tuple else output
-            
+
             # Decompose intermediate hidden states
-            # h shape: [batch_size, seq_len, hidden_dim]
             z_intent, z_context, _ = self.decomposer(h)
-            
+
             # Closed-loop Geodesic Null-Space Intervention
-            h_steered, info = self.barrier(h, z_intent, z_context)
-            
+            h_steered, info = self.barrier(h, z_intent, z_context, use_nullspace=self.use_nullspace)
+
             self.intervention_history.append({
-                "violation_prob": info["violation_prob"].detach().cpu(),
+                "violation_gate": info["violation_gate"].detach().cpu(),
                 "max_margin": info["max_margin"].detach().cpu(),
                 "argmax_cat": info["argmax_category"].detach().cpu()
             })
-            
+
             if is_tuple:
                 return (h_steered, *output[1:])
             return h_steered
