@@ -98,7 +98,8 @@ def build_stream(cells: MultiCells, fams, pi: float, rng: np.random.Generator, c
 
 
 def run_stream(score_fn, thr_shared: float, zs: float, fallback, cells, fams, pi, draws, cfg,
-               seed=0) -> dict:
+               seed=0, hybrid: tuple[float, float] | None = None) -> dict:
+    """hybrid = (shared threshold, z*) each calibrated at FPR/2; fires if either fires."""
     rng = np.random.default_rng(seed)
     acc: dict[str, dict[str, list[float]]] = {}
     for _ in range(draws):
@@ -106,10 +107,14 @@ def run_stream(score_fn, thr_shared: float, zs: float, fallback, cells, fams, pi
         with torch.no_grad():
             s = score_fn(x).cpu().numpy()
         shared = s > thr_shared
-        adapt = adaptive_fire(s, cluster(feats, cfg.pca_dim), zs, fallback=fallback)
+        lab = cluster(feats, cfg.pca_dim)
+        adapt = adaptive_fire(s, lab, zs, fallback=fallback)
+        rules = [("shared", shared), ("adaptive", adapt)]
+        if hybrid is not None:
+            rules.append(("hybrid", (s > hybrid[0]) | adaptive_fire(s, lab, hybrid[1], fallback=fallback)))
         for f in fams:
             m = fam == f
-            for name, fire in (("shared", shared), ("adaptive", adapt)):
+            for name, fire in rules:
                 d = acc.setdefault(f"{name}|{f}", {"tpr": [], "fpr": []})
                 d["tpr"].append(float(fire[m & (y == 1)].mean()))
                 d["fpr"].append(float(fire[m & (y == 0)].mean()))
