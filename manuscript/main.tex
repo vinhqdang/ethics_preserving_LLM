@@ -150,6 +150,12 @@ We test Proposition~3 without the Gaussian assumption. For every framing and tra
 \label{tab:theorycheck}
 \end{table}
 
+\paragraph{Clustering error.}
+The oracle grouping is not what runs in deployment. With $k_{\max}{=}30$ on the realistic mix, each framing falls into one to three clusters, and every cluster of at least 50 prompts holds a single framing, except that fiction shares a cluster with the plain request. The effective harmful share of a framing's main cluster is within 0.02 of its nominal prevalence (for example 0.07 against 0.05 for fiction, 0.51 against 0.50 for persona). The family-level model is a conservative guide to the clustered rule, not an exact one: its predictions correlate at 0.88 with measured adaptive recall, with a mean error of 11 points, and the error is mostly one-sided. For indirect injection the model predicts 27\% and the clustered rule reaches 90\%, because a cluster can be tighter than its framing, so its MAD is smaller and its threshold lower. Within-framing heterogeneity, which one location and scale per framing cannot express, is therefore a source of gain here and not of loss.
+
+\paragraph{Flooding.}
+Proposition~3 also bounds an adaptive attacker. A rule that standardises within a cluster can be pushed off its operating point by raising the harmful share of that cluster. We let the share of one framing grow from 5\% to 50\% while the rest of the stream stays unchanged (Appendix, Table~\ref{tab:flood}). For fiction, the oracle-grouped rule falls from 76\% recall to 68, 54, 20 and 0\%, against predictions of 76, 69, 50, 17 and 0\%. The clustered rule behaves the same way: fiction recall is 87\% at $\pi=0.05$, 59\% at $\pi=0.2$ and 17\% at $\pi=0.3$. To reach that point the attacker must send about 0.43 harmful prompts for each benign one in the framing, and the harmful prompts it sends are the traffic that goes through. The hybrid floor limits the damage only where the shared threshold already works, as for code (69\% recall at $\pi=0.5$, against 83\% for the shared rule at full budget). Where the shared threshold fails, as for fiction, flooding returns the gate to its uncalibrated behaviour. We did not test attackers who adapt their prompts to the probe \citep{bailey2026obfuscated}, which is a stronger threat than flooding.
+
 \section{Cluster-Wise Robust Recalibration}
 \label{sec:method}
 
@@ -253,6 +259,16 @@ ARETE standardises activations and maps them through two learned linear heads on
 
 \section{Additional Results}
 \label{app:extra}
+
+\paragraph{Flooding.}
+Table~\ref{tab:flood} reports recall (\%) on one target framing as its harmful share $\pi$ is raised while all other framings keep their realistic prevalence, on Qwen2.5-1.5B with $k_{\max}{=}30$ and 10 windows. The last row is the shared threshold at full budget.
+
+\begin{table}[t]
+\centering
+\resizebox{\columnwidth}{!}{\input{tables/flood.tex}}
+\caption{Recall (\%) of the adaptive and hybrid rules on one framing as its harmful prevalence $\pi$ grows.}
+\label{tab:flood}
+\end{table}
 
 \paragraph{Pre-registered configuration at generation level.}
 Table~\ref{tab:gen_prereg} repeats Table~\ref{tab:generation} with $k_{\max}{=}12$.
