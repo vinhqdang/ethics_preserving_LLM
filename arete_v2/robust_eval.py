@@ -73,11 +73,13 @@ def build_pool(model: str, fams, cfg: Config, score_fn) -> Pool:
             score[k] = score_fn(a[:, sl, sp].float()).cpu().numpy()
         feats[k] = a[:, cl, cp].float().numpy()
     tag = model.replace("/", "__")
-    un, uo, rn, ro = _labels(ROOT / "results_v2" / f"gen_{tag}_L14_full_judged.json", fams)
-    fresh = ROOT / "results_v2" / f"gen_fresh_{tag}_judged.json"
-    if fresh.exists():
-        for d, e in zip((un, uo, rn, ro), _labels(fresh, fams)):
-            d.update(e)
+    un, uo, rn, ro = {}, {}, {}, {}
+    for name in (f"gen_{tag}_L14_full_judged.json", f"gen_fresh_{tag}_judged.json",
+                 f"gen_all_{tag}_judged.json"):
+        path = ROOT / "results_v2" / name
+        if path.exists():
+            for d, e in zip((un, uo, rn, ro), _labels(path, fams)):
+                d.update(e)
     return Pool(score, feats, un, uo, rn, ro)
 
 
@@ -134,8 +136,9 @@ def one_window(pool: Pool, fams, scenario, rng, thr, thr_h, zs, zs_h, fb, cfg) -
     return out
 
 
-def evaluate(model: str, scenario_name: str, windows: int, fpr: float, include_fresh: bool) -> dict:
-    cfg = Config(score_view="mean", cluster_layer=14)
+def evaluate(model: str, scenario_name: str, windows: int, fpr: float, include_fresh: bool,
+             layer: int = 14) -> dict:
+    cfg = Config(score_layer=layer, score_view="mean", cluster_layer=layer)
     fams = tuple(FAMILIES) + (tuple(FRESH_FAMILIES) if include_fresh else ())
     tr = MultiCells(model, "train", SEEN_FAMILIES)
     va = MultiCells(model, "val", SEEN_FAMILIES)
