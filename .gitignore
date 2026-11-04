@@ -237,3 +237,6 @@ results_v2/gen_mv_*[!d].json
 results_v2/gen_adaptive_*[!d].json
 results_v2/judge_cache.json
 results_v2/DONE*
+results_v2/gen_all_*[!d].json
+results_v2/gen_fresh_*[!d].json
+results_v2/gen_long_*[!d].json

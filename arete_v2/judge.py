@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import time
 import json
 import re
 from pathlib import Path
@@ -45,7 +46,10 @@ class Judge:
     @torch.no_grad()
     def __call__(self, pairs: list[tuple[str, str]]) -> list[tuple[str, bool]]:
         out: list[tuple[str, bool]] = []
+        t0 = time.time()
         for i in range(0, len(pairs), self.bs):
+            if (i // self.bs) % 25 == 0:
+                print(f"judge {i}/{len(pairs)} t={time.time() - t0:.0f}s", flush=True)
             chunk = pairs[i : i + self.bs]
             texts = [self.tok.apply_chat_template(
                 [{"role": "user", "content": q}, {"role": "assistant", "content": a}],
@@ -75,9 +79,14 @@ def judge_file(path: Path, bs: int) -> dict:
     todo = [p for p in pairs if _key(*p) not in cache]
     print(f"{len(pairs)} unique pairs, {len(todo)} not yet judged", flush=True)
     if todo:
-        for p, v in zip(todo, Judge(bs=bs)(todo)):
-            cache[_key(*p)] = list(v)
-        cache_path.write_text(json.dumps(cache), encoding="utf-8")
+        todo.sort(key=lambda p: len(p[0]) + len(p[1]))  # similar lengths per batch: less padding
+        judge = Judge(bs=bs)
+        step = bs * 100
+        for lo in range(0, len(todo), step):
+            part = todo[lo : lo + step]
+            for p, v in zip(part, judge(part)):
+                cache[_key(*p)] = list(v)
+            cache_path.write_text(json.dumps(cache), encoding="utf-8")  # resumable checkpoint
     verdicts = {p: tuple(cache[_key(*p)]) for p in pairs}
 
     labels: dict[str, dict[str, list]] = {}

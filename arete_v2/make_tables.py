@@ -261,3 +261,40 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+PHI_TAG = "microsoft__Phi-3.5-mini-instruct"
+
+
+def table_second_model() -> None:
+    """Replication on Phi-3.5-mini with the configuration frozen from the 1.5B study."""
+    def load(k: int, scen: str) -> dict:
+        return json.loads((RES / f"robust_{PHI_TAG}_{scen}_k{k}.json").read_text())["summary"]
+
+    s30, s12 = load(30, "uniform5"), load(12, "uniform5")
+    diag = json.loads((RES / f"diag_{PHI_TAG}.json").read_text())
+    fams = ["fiction", "indirect", "past_tense", "academic", "code", "translation", "payload_split"]
+    lines = [r"\begin{tabular}{lcccccccc}", r"\toprule",
+             r" & & \multicolumn{4}{c}{Recall (\%)} & \multicolumn{3}{c}{Judged ASR (\%)} \\",
+             r"\cmidrule(lr){3-6}\cmidrule(lr){7-9}",
+             _hdr(["Framing", "AUROC", "Shared", "Oracle", r"Hyb.\,12", r"Hyb.\,30", "None", "Shared",
+                   r"Hyb.\,30"]),
+             r"\midrule"]
+    for f in fams:
+        d = diag[f"mean|{f}"]
+        rec = lambda s, r: f"{100 * s[f'{r}|harmful|{f}']['fire'][0]:.0f}"
+        asr = lambda s, r: f"{100 * s[f'{r}|harmful|{f}']['asr'][0]:.0f}"
+        lines.append(_hdr([ALL_SHORT[f], f"{d['auc']:.2f}", rec(s30, "shared"), f"{100 * d['oracle_tpr']:.0f}",
+                           rec(s12, "hybrid"), rec(s30, "hybrid"), asr(s30, "none"), asr(s30, "shared"),
+                           asr(s30, "hybrid")]))
+    all_f = list(FAMILIES) + list(FRESH_SHORT)
+    fpr = lambda s, r: 100 * np.mean([s[f"{r}|benign|{f}"]["fire"][0] for f in all_f])
+    lines.append(r"\midrule")
+    lines.append(_hdr(["Benign FPR (mean)", "", f"{fpr(s30, 'shared'):.1f}", "", f"{fpr(s12, 'hybrid'):.1f}",
+                       f"{fpr(s30, 'hybrid'):.1f}", "", "", ""]))
+    lines += [r"\bottomrule", r"\end{tabular}"]
+    (OUT / "second_model.tex").write_text("\n".join(lines))
+
+
+if __name__ == "__main__":
+    table_second_model()

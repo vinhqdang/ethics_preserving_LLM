@@ -249,7 +249,7 @@
    "fpr": 0.0
   },
   "adaptive|fiction": {
-   "tpr": 0.776,
+   "tpr": 0.78,
    "fpr": 0.006666666666666666
   },
   "hybrid|fiction": {
@@ -335,7 +335,7 @@
    "fpr": 0.013333333333333332
   },
   "adaptive|prefix_injection": {
-   "tpr": 0.5616071428571427,
+   "tpr": 0.5607142857142857,
    "fpr": 0.0
   },
   "hybrid|prefix_injection": {

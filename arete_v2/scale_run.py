@@ -148,7 +148,7 @@ def main() -> None:
     if "judge" in args.steps:
         from .judge import judge_file
         src = RES / f"gen_all_{tag}.json"
-        judged = judge_file(src, 64)
+        judged = judge_file(src, 16)
         (RES / f"gen_all_{tag}_judged.json").write_text(json.dumps(judged), encoding="utf-8")
         print("judge done", flush=True)
     if "diagnose" in args.steps:
