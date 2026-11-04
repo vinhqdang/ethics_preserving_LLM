@@ -1,0 +1,22 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/338 [00:00<?, ?it/s]Loading weights: 100%|##########| 338/338 [00:00<00:00, 4726.15it/s]
+[1/20] loss=0.822 steps=60 t=76s
+[2/20] loss=0.759 steps=80 t=168s
+[3/20] loss=1.157 steps=60 t=242s
+[4/20] loss=1.341 steps=80 t=321s
+[5/20] loss=1.152 steps=50 t=382s
+[6/20] loss=1.381 steps=20 t=409s
+[7/20] loss=1.025 steps=60 t=473s
+[8/20] loss=1.129 steps=40 t=524s
+[9/20] loss=1.299 steps=50 t=590s
+[10/20] loss=1.128 steps=40 t=636s
+[11/20] loss=1.252 steps=30 t=678s
+[12/20] loss=1.724 steps=10 t=690s
+[13/20] loss=1.548 steps=20 t=717s
+[14/20] loss=1.795 steps=20 t=743s
+[15/20] loss=1.777 steps=10 t=756s
+[16/20] loss=1.351 steps=40 t=817s
+[17/20] loss=1.151 steps=30 t=856s
+[18/20] loss=1.236 steps=80 t=962s
+[19/20] loss=1.174 steps=20 t=988s
+[20/20] loss=1.605 steps=20 t=1017s
