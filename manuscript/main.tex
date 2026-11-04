@@ -3,11 +3,9 @@
 \usepackage[top=0.95in,bottom=0.95in,left=0.75in,right=0.75in,columnsep=0.28in]{geometry}
 \usepackage{times}
 \usepackage{latexsym}
-\usepackage{amsmath,amssymb,amsfonts,amsthm}
+\usepackage{amsmath,amssymb,amsfonts}
 \usepackage{booktabs}
 \usepackage{graphicx}
-\usepackage{tikz}
-\usetikzlibrary{shapes,arrows,positioning,calc,fit}
 \usepackage{microtype}
 \usepackage[numbers,sort&compress]{natbib}
 \usepackage{hyperref}
@@ -15,358 +13,171 @@
 \usepackage{xcolor}
 \usepackage{multirow}
 \usepackage{enumitem}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\setlist{nosep,leftmargin=*}
 
-\hypersetup{
-    colorlinks=true,
-    linkcolor=blue!70!black,
-    citecolor=blue!70!black,
-    urlcolor=blue!70!black
-}
-
-\newtheorem{theorem}{Theorem}
-\newtheorem{lemma}{Lemma}
-\newtheorem{definition}{Definition}
-\newtheorem{proposition}{Proposition}
-\newtheorem{corollary}{Corollary}
-
-\title{\textbf{Preserving Invariant Ethical Geometry in Large Language Models\\Under Adversarial Framing and Prompt Injections}}
-
-\author{
-  \textbf{Anonymous ACL Submission}\\
-  ACL 2027 Main Conference Track
-}
-
+\title{\textbf{The Gate Knows, the Threshold Doesn't:\\Label-Free Recalibration of Activation-Gated Jailbreak Defenses\\Under Unseen Framings}}
+\author{Anonymous submission}
 \date{}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-Despite advances in post-pretraining safety alignment---ranging from Reinforcement Learning from Human Feedback (RLHF) and Direct Preference Optimization (DPO) to multi-level safety constraints (Safe-RLHF)---Large Language Models (LLMs) remain vulnerable to adversarial prompt injections and jailbreaks (e.g., GCG suffixes, AutoDAN mutations, PAIR roleplay, and indirect context overrides). We trace this fragility to \textit{latent representation entanglement}: standard Transformer residual streams couple underlying task \textit{intent} with surface \textit{contextual framing} (syntax, persona wrappers, and rhetorical style). Adversaries exploit the context dimensions to mask harmful intent from linear safety boundaries, while existing activation-steering defenses indiscriminately perturb context features, inducing severe false refusals on benign dual-use queries.
-
-To address this tension, we propose \textbf{ARETE} (\textbf{A}daptive \textbf{R}iemannian \textbf{E}thical \textbf{T}opology \textbf{E}nforcement), a geometric activation-intervention framework comprising three components: (1) \textbf{Bundle-Orthogonal Intent-Context Decomposition}, which maps intermediate residual states $h \in \mathbb{R}^D$ into radial norms and directional coordinates on unit Riemannian hyperspheres ($\mathbb{S}^{d_I-1} \times \mathbb{S}^{d_C-1}$), achieving empirical geodesic intent invariance ($\epsilon_{\text{mean}} = 0.1596$ rad on controlled manifolds and $0.2368$ rad at Layer 14 of \texttt{Qwen2.5-1.5B-Instruct}); (2) a 19-category \textbf{Geodesic Safety Barrier (GSB)} aligned with the PKU-SafeRLHF harm taxonomy that performs exact single-step spherical-cap retraction; and (3) \textbf{Subspace Orthogonal Null-Space Steering}, which projects defensive corrections onto the orthogonal complement $\mathcal{P}_{\text{context}}^\perp$ of the context subspace. Across five attack paradigms, out-of-distribution (OOD) unseen attack splits, and white-box adaptive PGD attacks, ARETE reduces Attack Success Rate (ASR) to $0.17\%$ in-distribution (95\% Clopper-Pearson CI: $[0.004\%, 0.92\%]$), $1.33\%$ on unseen attack families, and $2.82\%$ under adaptive white-box PGD, while maintaining $0.0\%$ benign false-positive refusals and preserving exact benign generation fluency on \texttt{Qwen2.5-1.5B-Instruct}.
+Activation-gated defenses read a language model's residual stream, decide whether a prompt is harmful, and only then intervene, for example by steering towards refusal. They are attractive because they are cheap and leave benign traffic untouched, but they are calibrated on the jailbreak framings seen during development. We evaluate five such gates on real harmful and benign corpora wrapped in eight framing families, four of which are held out entirely. On unseen framings recall collapses: at a 1\% benign false-positive budget, every gate detects at most 17\% of harmful fiction or indirect-injection prompts, and the undefended attack success rate of 89\% on fiction is left unchanged. The information has not disappeared. A probe that reads the mean of the user's tokens still ranks harmful above benign prompts with AUROC 0.98--0.99 on these framings, and re-thresholding it on the new framing would recover 79--81\% recall. The failure is a calibration shift, not a representation failure. We turn this diagnosis into a remedy that needs no labels: cluster the incoming prompt stream by framing, standardise the gate score robustly within each cluster, and fix a single threshold on validation streams. Selected by leave-one-framing-out on validation data and evaluated once on the test split, the method lifts recall on unseen fiction prompts from 7\% to 87\% and on indirect injection from 17\% to 65\% at a 5\% harmful prevalence, with benign false positives near the budget on these framings. At generation level, it cuts the judged attack success rate of fiction prompts from 89\% to 34\% and raises benign over-refusal by less than one point. We also report where it fails: when harmful prompts make up a fifth or more of the traffic, when the target model cannot parse the framing, and when a framing cluster is pure noise.
 \end{abstract}
 
 \section{Introduction}
-\label{sec:intro}
 
-The deployment of Large Language Models (LLMs) across autonomous workflows, software engineering assistants, and enterprise decision support has made robust safety adherence a core requirement \citep{christiano2017deep,ouyang2022training,bai2022constitutional,ji2023beavertails}. Alignment pipelines---including RLHF \citep{ouyang2022training}, Direct Preference Optimization (DPO) \citep{rafailov2023direct}, and decoupled harmlessness-helpfulness constrained optimization (Safe-RLHF) \citep{dai2024safe,ji2024pkusaferlhf,ji2025saferlhfv}---substantially reduce harmful generations on standard conversational distributions.
+Safety training teaches a language model to refuse harmful requests, and jailbreaks teach it to forget. A request that is refused when asked plainly is often answered when it is wrapped in a persona, a story, a retrieved document, or an encoding \citep{wei2023jailbroken,shen2024dan,greshake2023indirect,li2023deepinception}. Because these wrappers change the surface of the prompt but not what is being asked, a natural line of defense looks beneath the surface. Residual-stream activations carry a linearly readable signal of harmfulness \citep{zou2023repe,arditi2024refusal,zhao2025harmfulness}, and several defenses read that signal to gate an intervention: conditional activation steering adds a refusal direction only when a condition vector fires \citep{lee2025cast}, and probe-based detectors flag a prompt before generation \citep{zhang2025jbshield,mckenzie2025highstakes}. Such gates are appealing in deployment. They cost one forward pass, they leave benign traffic alone, and their operating point can be set to a fixed false-positive budget.
 
-However, behavioral alignment remains fragile against adversarial framing and prompt injections \citep{wei2024jailbroken,zou2023universal,mazeika2024harmbench}. Attackers routinely bypass refusal boundaries using automated Greedy Coordinate Gradient (GCG) token suffixes \citep{zou2023universal}, hierarchical genetic mutations (AutoDAN) \citep{liu2023autodan}, iterative LLM-driven roleplay refinement (PAIR) \citep{chao2023jailbreaking}, multi-turn Crescendo escalations \citep{russinovich2024crescendo}, and indirect third-party document injections. Across these paradigms, the core malicious objective (e.g., synthesizing exploit payloads or wiping forensic logs) is preserved while its rhetorical or syntactic wrapper is heavily shifted.
+This paper is about what happens to that operating point when the framing changes. A gate is trained and thresholded on the framings its developers anticipated. Attackers do not oblige. We therefore separate framing families into a \emph{seen} set used for training and calibration and an \emph{unseen} set that is never touched until the final test, and we evaluate on real prompts from HarmBench, AdvBench, JailbreakBench, XSTest and OR-Bench \citep{mazeika2024harmbench,zou2023gcg,chao2024jailbreakbench,rottger2024xstest,cui2025orbench}, with generations judged by a guard model \citep{qwen2025qwen3guard} rather than by refusal string matching.
 
-\begin{figure*}[t]
-\centering
-\resizebox{0.96\textwidth}{!}{
-\begin{tikzpicture}[
-    box/.style={draw, rounded corners, align=center, fill=blue!5, font=\small, minimum height=0.95cm, inner sep=5pt},
-    intentbox/.style={draw=red!70!black, rounded corners, align=center, fill=red!10, font=\small, minimum height=0.9cm, inner sep=5pt},
-    ctxbox/.style={draw=green!60!black, rounded corners, align=center, fill=green!10, font=\small, minimum height=0.9cm, inner sep=5pt},
-    gatebox/.style={draw=orange!80!black, rounded corners, align=center, fill=orange!15, font=\small, minimum height=0.9cm, inner sep=5pt},
-    arrow/.style={->, >=stealth, thick, line width=1.05pt}
-]
-    \node[box] (input) at (0, 0) {\textbf{Residual State} $h \in \mathbb{R}^D$\\Layer $l$, Norm $r(h) = \|h\|_2$};
-    \node[box, fill=purple!10, draw=purple!80!black] (decomp) at (3.6, 0) {\textbf{Bundle Decomposer}\\$\phi_I, \phi_C \to \mathbb{S}^{d_I-1} \times \mathbb{S}^{d_C-1}$};
-    \node[intentbox] (intent) at (7.5, 1.15) {\textbf{Intent Sphere} $z_{\text{intent}} \in \mathbb{S}^{d_I-1}$\\$\epsilon$-Invariant under $\mathcal{T}_{\text{adv}}$};
-    \node[ctxbox] (ctx) at (7.5, -1.15) {\textbf{Context Sphere} $z_{\text{context}} \in \mathbb{S}^{d_C-1}$\\Syntax, Persona, Framing};
-    \node[gatebox] (barrier) at (11.7, 1.15) {\textbf{Geodesic Safety Barrier}\\19 Spherical Caps $\mathcal{K}_{\text{safe}}$\\$z^+ = \pi_{\mathcal{K}_{k^*}}(z_{\text{intent}}) \in \mathbb{S}^{d_I-1}$};
-    \node[box, fill=yellow!15, draw=yellow!70!black] (nullspace) at (11.7, -1.15) {\textbf{Subspace Null Projector}\\$\mathcal{P}_{\text{context}}^\perp = (\mathbf{I}-\hat{v}_{\text{ctx}}\hat{v}_{\text{ctx}}^\top)(\mathbf{I}-\mathbf{Q}_C\mathbf{Q}_C^\top)$};
-    \node[box, fill=green!20, draw=green!70!black] (output) at (15.6, 0) {\textbf{Steered State} $\tilde{h} = h + \Delta h$\\$\mathcal{P}_{\text{context}}\Delta h \equiv \mathbf{0}$\\$\Delta h \equiv \mathbf{0}$ on Benign ($\max_k m_k \le 0$)};
+The first finding is a collapse. Every gate we test, including a geometric gate of our own design that explicitly tries to factor framing out of the representation, keeps more than 80\% recall on seen framings and drops to between 0\% and 17\% on fiction and indirect injection. At the level of generated text, none of them lowers the 89\% attack success rate of the fiction framing at all.
 
-    \draw[arrow] (input) -- (decomp);
-    \draw[arrow] (decomp) |- (intent);
-    \draw[arrow] (decomp) |- (ctx);
-    \draw[arrow] (intent) -- (barrier);
-    \draw[arrow] (ctx) -- (nullspace);
-    \draw[arrow] (barrier) -- node[right, font=\scriptsize] {$\Delta z_{\text{intent}}$} (nullspace);
-    \draw[arrow] (nullspace) -| (output);
-    \draw[arrow] (decomp) -- (output);
-\end{tikzpicture}
-}
-\caption{\textbf{Architectural overview of ARETE.} An intermediate residual state $h \in \mathbb{R}^D$ at layer $l$ is mapped onto unit hyperspherical coordinates $(z_{\text{intent}}, z_{\text{context}}) \in \mathbb{S}^{d_I-1} \times \mathbb{S}^{d_C-1}$. When $z_{\text{intent}}$ violates any of the 19 harm-category spherical caps ($m_{k^*} > 0$), the exact geodesic cap projection $\pi_{\mathcal{K}_{k^*}}(z_{\text{intent}})$ is lifted to $\mathbb{R}^D$ and projected onto the orthogonal complement $\mathcal{P}_{\text{context}}^\perp$ of the context subspace. Benign inputs satisfy $\max_k m_k \le 0$, receiving identically zero perturbation ($\Delta h \equiv \mathbf{0}$).}
-\label{fig:arete_architecture}
-\end{figure*}
+The second finding is that the collapse is not where one would expect. If the harmful signal were destroyed by the framing, no threshold could recover it. Instead, the area under the ROC curve barely moves: a probe reading the user's tokens separates harmful from benign fiction prompts with AUROC 0.99. What moves is the location of both score distributions. A threshold set on seen framings lands in the wrong place, and the same probe re-thresholded on the new framing detects 80\% of harmful fiction prompts. Concurrent work reaches compatible conclusions in related settings: linear jailbreak probes are poorly calibrated off-distribution \citep{kim2026linearly}, and distribution shift degrades threshold transfer before it degrades ranking \citep{luo2026measuring}. We confirm the pattern systematically across gates, readout positions and framings, and we show that the most principled representational fix we could build, projecting out a subspace of framing directions, does not repair it.
 
-Current post-hoc defenses fall into two categories, each facing distinct trade-offs:
-\begin{enumerate}[leftmargin=*,nosep]
-    \item \textbf{External Input/Output Guardrails and Decoding Filters}: Moderation classifiers such as Llama Guard \citep{inan2023llama}, Beaver-Guard \citep{ji2025saferlhfv}, SmoothLLM \citep{robey2023smoothllm}, and SafeDecoding \citep{xu2024safedecoding} inspect text or logits externally. These methods incur extra inference latency and remain vulnerable to indirect prompt injections and obfuscated framing.
-    \item \textbf{Linear Activation Steering and Conditional Probing}: Internal representation interventions---including Representation Engineering (RepEng) \citep{zou2023representation}, 1D refusal-direction addition \citep{arditi2024refusal}, Circuit Breakers \citep{zou2024circuit}, and Conditional Activation Steering (CAST) \citep{lee2024programming}---shift hidden states along a refusal vector. However, operating directly on entangled residual streams causes two failure modes: (i) \textit{exaggerated over-refusal} on benign dual-use prompts containing sensitive keywords (e.g., ``How do I kill a stuck background process in Linux?''), as documented by XSTest \citep{rottger2023xstest} and OR-Bench \citep{cui2024orbench}; and (ii) \textit{contextual collateral damage}, where adding an unconstrained steering vector corrupts surrounding syntactic and contextual features.
-\end{enumerate}
+The third contribution is a remedy that targets the calibration directly and requires no labels. Deployed gates see a stream of mostly benign prompts. We cluster that stream by framing features, standardise the gate score inside each cluster with median and median absolute deviation, which are insensitive to a small fraction of harmful prompts \citep{rousseeuw1993mad,leys2013mad}, and apply one threshold that is fixed on validation streams. The idea of recalibrating subpopulations without labels has antecedents in general machine learning \citep{ziegler2019unsupervised,hebertjohnson2018multicalibration}; what we contribute is its adaptation to activation-gated safety, the choice of features to cluster on, a selection protocol that never looks at the unseen framings, and an honest account of the regimes in which it breaks.
 
-\paragraph{Our Approach: ARETE.}
-We address these failure modes by formulating safety enforcement as a \textit{Riemannian spherical-cap boundary problem} over disentangled intent and context representations. Our contributions are:
-\begin{enumerate}[leftmargin=*,nosep]
-    \item \textbf{Bundle-Orthogonal Intent-Context Decomposition}: We decompose residual states $h \in \mathbb{R}^D$ into radial norms $r(h) = \|h\|_2$ and unit hyperspherical coordinates $(z_{\text{intent}}, z_{\text{context}}) \in \mathbb{S}^{d_I-1} \times \mathbb{S}^{d_C-1}$. We derive an exact chord-margin safety bound (Proposition~\ref{prop:invariance}) linking geodesic intent stability to spherical-cap detection under adversarial perturbations.
-    \item \textbf{Multi-Category Geodesic Safety Barrier (GSB)}: We construct 19 calibrated spherical-cap boundaries aligned with the PKU-SafeRLHF taxonomy \citep{ji2024pkusaferlhf} and derive the closed-form geodesic metric retraction $\pi_{\mathcal{K}_{k^*}}(z_{\text{intent}})$ onto the safe spherical cap in a single step (Proposition~\ref{prop:retraction}).
-    \item \textbf{Subspace Orthogonal Null-Space Steering}: We prove (Theorem~\ref{thm:nullspace}) that projecting lifted steering vectors onto the orthogonal complement $\mathcal{P}_{\text{context}}^\perp$ of both the global rank-$r_C$ context subspace and sample-specific context vector guarantees zero linear perturbation to the context subspace while leaving benign queries untouched ($\Delta h \equiv \mathbf{0}$).
-    \item \textbf{Comprehensive Empirical \& Real-LLM Validation}: We evaluate ARETE on controlled manifold benchmarks (including OOD unseen attack families and 10-step white-box adaptive PGD attacks) and on real Layer-14 activations and autoregressive generations of \texttt{Qwen2.5-1.5B-Instruct}, demonstrating strong jailbreak suppression without benign over-refusal.
-\end{enumerate}
-
-\section{Related Work}
-\label{sec:related}
-
-\paragraph{Safety Alignment and Taxonomies.}
-Post-pretraining alignment methods train LLMs via RLHF \citep{christiano2017deep,ouyang2022training,bai2022constitutional} or DPO \citep{rafailov2023direct}. Safe-RLHF \citep{dai2024safe}, BeaverTails \citep{ji2023beavertails}, and PKU-SafeRLHF \citep{ji2024pkusaferlhf} decouple helpfulness and harmlessness via constrained optimization across 19 granular harm categories and three severity levels, recently extended to multimodal inputs in Safe RLHF-V \citep{ji2025saferlhfv}. Despite strong average-case alignment, weight-space preference tuning remains susceptible to distribution shifts induced by adversarial framing \citep{wei2024jailbroken,carlini2019evaluating,tramer2020adaptive}.
-
-\paragraph{Adversarial Jailbreaks.}
-Automated jailbreaks systematically evade safety boundaries. GCG \citep{zou2023universal} optimizes discrete token suffixes via coordinate gradients; AutoDAN \citep{liu2023autodan} applies hierarchical genetic mutations to preserve fluency; PAIR \citep{chao2023jailbreaking} uses an attacker LLM to iteratively refine persona wrappers; and Crescendo \citep{russinovich2024crescendo} escalates across multi-turn dialogues. Standardized suites such as JailbreakBench \citep{chao2024jailbreakbench} and HarmBench \citep{mazeika2024harmbench} confirm that both open-weight and frontier models remain vulnerable.
-
-\paragraph{Representation Engineering and Activation Steering.}
-Internal activation methods intervene directly on Transformer hidden states \citep{zou2023representation}. \citet{arditi2024refusal} showed that refusal behavior is mediated by a dominant 1D direction, while Circuit Breakers \citep{zou2024circuit} reroute harmful representations during training. To reduce false refusals on benchmarks such as XSTest \citep{rottger2023xstest} and OR-Bench \citep{cui2024orbench}, Conditional Activation Steering (CAST) \citep{lee2024programming} gates a 1D refusal vector using a linear activation condition. However, existing methods operate on raw, entangled hidden states and apply rank-1 shifts without disentangling intent from context or projecting out the context subspace. ARETE advances this line of work by combining non-linear hyperspherical intent-context decomposition with 19-category geodesic cap retraction and subspace null-space projection.
-
-\section{Theoretical Framework}
-\label{sec:formulation}
-
-\subsection{Hyperspherical Intent-Context Decomposition}
-Let $h \in \mathbb{R}^D \setminus \{\mathbf{0}\}$ denote the residual stream hidden state at intermediate Transformer layer $l$ (at the last prompt token position during prefill). In standard Transformers, semantic task intent and rhetorical framing are non-linearly coupled within $h$. We introduce two non-linear two-layer SiLU encoders $f_I: \mathbb{R}^D \to \mathbb{R}^{d_I}$ and $f_C: \mathbb{R}^D \to \mathbb{R}^{d_C}$ ($d_I + d_C = D$), followed by LayerNorm ($\text{LN}$) and $\ell_2$ normalization onto unit Riemannian hyperspheres \citep{absil2008optimization,bronstein2021geometric}:
-\begin{align}
-    z_{\text{intent}} &= \phi_I(h) = \frac{\text{LN}(f_I(h))}{\|\text{LN}(f_I(h))\|_2} \in \mathbb{S}^{d_I-1}, \label{eq:phi_I} \\
-    z_{\text{context}} &= \phi_C(h) = \frac{\text{LN}(f_C(h))}{\|\text{LN}(f_C(h))\|_2} \in \mathbb{S}^{d_C-1}. \label{eq:phi_C}
-\end{align}
-To preserve the radial magnitude discarded by spherical normalization, we retain $r(h) = \|h\|_2 \in \mathbb{R}_{>0}$ and define a partitioned linear reconstruction map $\Phi = [\mathbf{W}_I, \mathbf{W}_C] \in \mathbb{R}^{D \times (d_I + d_C)}$:
-\begin{equation}
-    h_{\text{recon}} = r(h)\,\Phi\big([z_{\text{intent}}; z_{\text{context}}]\big) = r(h)\left(\mathbf{W}_I z_{\text{intent}} + \mathbf{W}_C z_{\text{context}}\right).
-    \label{eq:recon}
-\end{equation}
-
-\subsection{Adversarial Perturbations \& Chord-Margin Safety Bound}
-Let $\mathcal{T}_{\text{adv}}$ denote a family of intent-preserving adversarial framing transformations (e.g., GCG suffixes, PAIR roleplay wrappers, AutoDAN mutations, or indirect context injections). Equipped with the canonical Riemannian metric on $\mathbb{S}^{d_I-1}$, the geodesic distance between $u, v \in \mathbb{S}^{d_I-1}$ is $d_g(u, v) = \arccos(\langle u, v \rangle) \in [0, \pi]$.
-
-\begin{definition}[$(\epsilon, \delta)$-Adversarial Intent Stability]
-\label{def:invariance}
-An intent encoder $\phi_I: \mathbb{R}^D \to \mathbb{S}^{d_I-1}$ satisfies $(\epsilon, \delta)$-adversarial intent stability under $\mathcal{T}_{\text{adv}}$ if, for $x \sim \mathcal{D}$ and $\tau \in \mathcal{T}_{\text{adv}}$, the geodesic divergence $D_g(x, \tau) = d_g\big(\phi_I(h(x)), \phi_I(h(\tau(x)))\big)$ satisfies $\mathbb{E}[D_g(x, \tau)] \le \epsilon_{\text{mean}}$ and $\mathbb{P}\big(D_g(x, \tau) \le \epsilon\big) \ge 1 - \delta$.
-\end{definition}
-
-\begin{proposition}[Spherical-Cap Safety Preservation Under $\epsilon$-Perturbation]
-\label{prop:invariance}
-Let $z_{\text{clean}} = \phi_I(h(x))$ and $z_{\text{adv}} = \phi_I(h(\tau(x)))$ satisfy $d_g(z_{\text{clean}}, z_{\text{adv}}) \le \epsilon$ for $\epsilon \in [0, \pi]$. For any harm category $k$ with unit boundary normal $w_k \in \mathbb{S}^{d_I-1}$ and cap threshold $\gamma_k \in (0, 1)$, define the violation margin $m_k(z) = \langle z, w_k \rangle - \gamma_k$. If the clean query violates boundary $k$ with margin exceeding the chord bound:
-\begin{equation}
-    m_k(z_{\text{clean}}) > 2\sin(\epsilon / 2),
-\end{equation}
-then the adversarially cloaked query satisfies:
-\begin{equation}
-    m_k(z_{\text{adv}}) \ge m_k(z_{\text{clean}}) - 2\sin(\epsilon / 2) > 0,
-\end{equation}
-and more tightly, by the spherical law of cosines, $m_k(z_{\text{adv}}) \ge \cos(\epsilon)\langle z_{\text{clean}}, w_k \rangle - \sin(\epsilon)\sqrt{1 - \langle z_{\text{clean}}, w_k \rangle^2} - \gamma_k$.
-\end{proposition}
-\begin{proof}
-Let $\theta = d_g(z_{\text{clean}}, z_{\text{adv}}) \le \epsilon$. Since $z_{\text{clean}}, z_{\text{adv}} \in \mathbb{S}^{d_I-1}$, their Euclidean chord distance in $\mathbb{R}^{d_I}$ is $\|z_{\text{adv}} - z_{\text{clean}}\|_2 = \sqrt{2 - 2\cos\theta} = 2\sin(\theta/2) \le 2\sin(\epsilon/2)$, as $t \mapsto \sin(t/2)$ is strictly increasing on $[0, \pi]$. By Cauchy-Schwarz and $\|w_k\|_2 = 1$:
-\begin{equation*}
-    \big|\langle z_{\text{adv}}, w_k \rangle - \langle z_{\text{clean}}, w_k \rangle\big| \le \|z_{\text{adv}} - z_{\text{clean}}\|_2 \|w_k\|_2 \le 2\sin(\epsilon/2).
-\end{equation*}
-Subtracting $\gamma_k$ yields $m_k(z_{\text{adv}}) \ge m_k(z_{\text{clean}}) - 2\sin(\epsilon/2) > 0$. For the tighter trigonometric bound, by the triangle inequality for geodesic distance on $\mathbb{S}^{d_I-1}$, $d_g(z_{\text{adv}}, w_k) \le d_g(z_{\text{clean}}, w_k) + \theta \le \arccos(\langle z_{\text{clean}}, w_k \rangle) + \epsilon$; taking cosines via $\cos(\alpha + \epsilon) = \cos\alpha\cos\epsilon - \sin\alpha\sin\epsilon$ yields the stated bound.
-\end{proof}
-
-\subsection{Geodesic Safety Barrier \& Exact Spherical-Cap Retraction}
-We parameterize the ethical safety barrier using $K=19$ unit normal vectors $\{w_k\}_{k=1}^K \subset \mathbb{S}^{d_I-1}$ corresponding to the 19 harm categories of PKU-SafeRLHF \citep{ji2024pkusaferlhf}, paired with calibrated thresholds $\gamma_k \in (0, 1)$. The safe intent region $\mathcal{K}_{\text{safe}} \subset \mathbb{S}^{d_I-1}$ is the complement of $K$ open spherical caps:
-\begin{equation}
-    \mathcal{K}_{\text{safe}} = \left\{ z \in \mathbb{S}^{d_I-1} \;\middle|\; m_k(z) = \langle z, w_k \rangle - \gamma_k \le 0, \;\forall k \in \{1,\dots,K\} \right\}.
-\end{equation}
-
-When a violation occurs ($m_{k^*}(z_{\text{intent}}) > 0$ for $k^* = \arg\max_k m_k(z_{\text{intent}})$), rather than taking an unnormalized Euclidean step that leaves the sphere, we derive the exact Riemannian metric projection onto the contracted spherical cap boundary $\langle z^+, w_{k^*} \rangle = \gamma'_{k^*}$, where $\gamma'_{k^*} = \gamma_{k^*} - \delta_{\text{slack}}$ ($\delta_{\text{slack}} = 0.05$).
-
-\begin{proposition}[Single-Step Geodesic Spherical-Cap Retraction]
-\label{prop:retraction}
-Let $z \in \mathbb{S}^{d_I-1}$ violate cap $k^*$ with $\langle z, w_{k^*} \rangle \in (\gamma'_{k^*}, 1)$, and define the unit orthogonal component in the great-circle plane spanned by $\{z, w_{k^*}\}$:
-\begin{equation}
-    u_\perp = \frac{z - \langle z, w_{k^*} \rangle w_{k^*}}{\|z - \langle z, w_{k^*} \rangle w_{k^*}\|_2}.
-\end{equation}
-Then the geodesic retraction point
-\begin{equation}
-    z^+ = \pi_{\mathcal{K}_{k^*}}(z) = \gamma'_{k^*} w_{k^*} + \sqrt{1 - (\gamma'_{k^*})^2}\, u_\perp
-    \label{eq:cap_retraction}
-\end{equation}
-satisfies: (i) $z^+ \in \mathbb{S}^{d_I-1}$ ($\|z^+\|_2 = 1$), (ii) $\langle z^+, w_{k^*} \rangle = \gamma'_{k^*} < \gamma_{k^*}$ in a single step, and (iii) $z^+$ minimizes $d_g(z, u)$ over all $u \in \mathbb{S}^{d_I-1}$ satisfying $\langle u, w_{k^*} \rangle \le \gamma'_{k^*}$.
-\end{proposition}
-\begin{proof}
-By construction, $\langle u_\perp, w_{k^*} \rangle = 0$ and $\|u_\perp\|_2 = \|w_{k^*}\|_2 = 1$. Thus $\|z^+\|_2^2 = (\gamma'_{k^*})^2 + (1 - (\gamma'_{k^*})^2) = 1$, and $\langle z^+, w_{k^*} \rangle = \gamma'_{k^*} = \gamma_{k^*} - \delta_{\text{slack}} < \gamma_{k^*}$. Since $z^+$ lies on the unique great-circle geodesic passing through $w_{k^*}$ and $z$, the spherical triangle inequality implies $d_g(z, u) \ge d_g(u, w_{k^*}) - d_g(z, w_{k^*}) \ge \arccos(\gamma'_{k^*}) - \arccos(\langle z, w_{k^*} \rangle) = d_g(z, z^+)$ for any $u$ with $\langle u, w_{k^*} \rangle \le \gamma'_{k^*}$.
-\end{proof}
-
-\subsection{Subspace Orthogonal Null-Space Steering}
-Gated by the hard violation indicator $\mathbb{I}[\max_k m_k(z_{\text{intent}}) > 0]$, the chord displacement on $\mathbb{S}^{d_I-1}$ is:
-\begin{equation}
-    \Delta z_{\text{intent}} = \mathbb{I}\!\left[\max_k m_k(z_{\text{intent}}) > 0\right] \big(\pi_{\mathcal{K}_{k^*}}(z_{\text{intent}}) - z_{\text{intent}}\big).
-    \label{eq:delta_z}
-\end{equation}
-Lifting $\Delta z_{\text{intent}}$ into $\mathbb{R}^D$ via $\mathbf{W}_{\text{steer}} \in \mathbb{R}^{D \times d_I}$ and radial scaling $r(h) = \|h\|_2$ gives the unconstrained perturbation $\Delta h_{\text{raw}} = r(h)\,\mathbf{W}_{\text{steer}}\Delta z_{\text{intent}}$. Because $f_I$ and $f_C$ are non-linear MLPs, an unconstrained $\Delta h_{\text{raw}}$ leaks into the context subspace.
-
-\begin{theorem}[Context Subspace Orthogonality \& Benign Zero-Distortion]
-\label{thm:nullspace}
-Let $\mathbf{Q}_C = \mathrm{orth}(\mathbf{B}_{\text{ctx}}) \in \mathbb{R}^{D \times r_C}$ ($\mathbf{Q}_C^\top \mathbf{Q}_C = \mathbf{I}_{r_C}$) denote the orthonormal basis of the rank-$r_C$ global context subspace, and let $\hat{v}_{\text{ctx}} = \frac{\mathbf{W}_{\text{ctx}} z_{\text{context}}}{\|\mathbf{W}_{\text{ctx}} z_{\text{context}}\|_2} \in \mathbb{S}^{D-1}$ denote the sample-conditioned lifted context direction. Define the composite null-space projector:
-\begin{equation}
-    \mathcal{P}_{\text{context}}^\perp = \left(\mathbf{I}_D - \hat{v}_{\text{ctx}}\hat{v}_{\text{ctx}}^\top\right)\left(\mathbf{I}_D - \mathbf{Q}_C \mathbf{Q}_C^\top\right).
-    \label{eq:nullspace_proj}
-\end{equation}
-Then the steered perturbation $\Delta h = \mathcal{P}_{\text{context}}^\perp \Delta h_{\text{raw}}$ satisfies:
-\begin{enumerate}[leftmargin=*,nosep]
-    \item \textbf{Context Orthogonality}: $\langle \Delta h, \hat{v}_{\text{ctx}} \rangle \equiv 0$, and if $\hat{v}_{\text{ctx}} \in \mathrm{range}(\mathbf{Q}_C)$ or $\mathbf{Q}_C^\top \hat{v}_{\text{ctx}} = \mathbf{0}$, then $\mathbf{Q}_C^\top \Delta h = \mathbf{0}$ across all $r_C$ basis axes.
-    \item \textbf{Exact Benign Preservation}: For any input $x$ whose intent satisfies $\max_k m_k(\phi_I(h(x))) \le 0$, the indicator gate in Eq.~\eqref{eq:delta_z} evaluates to $0$, yielding $\Delta h \equiv \mathbf{0}$ and zero downstream perturbation across all subsequent layers $f_{>l}$:
-    \begin{equation}
-        \big\|f_{>l}(h + \Delta h) - f_{>l}(h)\big\|_2 = 0.
-    \end{equation}
-\end{enumerate}
-\end{theorem}
-\begin{proof}
-Let $u = (\mathbf{I}_D - \mathbf{Q}_C \mathbf{Q}_C^\top)\Delta h_{\text{raw}}$. Then $\langle \Delta h, \hat{v}_{\text{ctx}} \rangle = \hat{v}_{\text{ctx}}^\top(\mathbf{I}_D - \hat{v}_{\text{ctx}}\hat{v}_{\text{ctx}}^\top)u = (\hat{v}_{\text{ctx}}^\top - \|\hat{v}_{\text{ctx}}\|_2^2 \hat{v}_{\text{ctx}}^\top)u = 0$. Moreover, $\mathbf{Q}_C^\top u = (\mathbf{Q}_C^\top - \mathbf{Q}_C^\top \mathbf{Q}_C \mathbf{Q}_C^\top)\Delta h_{\text{raw}} = \mathbf{0}$ since $\mathbf{Q}_C^\top \mathbf{Q}_C = \mathbf{I}_{r_C}$. Finally, when $\max_k m_k(\phi_I(h)) \le 0$, Eq.~\eqref{eq:delta_z} gives $\Delta z_{\text{intent}} = \mathbf{0} \implies \Delta h_{\text{raw}} = \mathbf{0} \implies \Delta h = \mathbf{0}$, so $h + \Delta h = h$ identically.
-\end{proof}
-
-\section{Training Objective \& Implementation}
-\label{sec:architecture}
-
-During training on paired clean and adversarially framed representations $(h_{\text{clean}}, h_{\text{adv}})$, ARETE jointly optimizes the Decomposer ($\phi_I, \phi_C, \Phi$) and the Geodesic Safety Barrier ($\{w_k, \gamma_k\}, \mathbf{W}_{\text{steer}}, \mathbf{W}_{\text{ctx}}, \mathbf{B}_{\text{ctx}}$):
-\begin{equation}
-    \mathcal{L}_{\text{total}} = \mathcal{L}_{\text{decomp}} + \lambda_{\text{barrier}}\mathcal{L}_{\text{barrier}}, \quad \lambda_{\text{barrier}} = 1.2.
-\end{equation}
-
-\paragraph{Decomposition Objective.}
-The decomposition loss combines geodesic intent invariance, statistical and subspace orthogonality, and radial-scaled reconstruction:
-\begin{equation}
-    \mathcal{L}_{\text{decomp}} = \mathcal{L}_{\text{inv}} + \lambda_{\text{ortho}}\mathcal{L}_{\text{ortho}} + \lambda_{\text{rec}}\mathcal{L}_{\text{rec}},
-\end{equation}
-with $\lambda_{\text{ortho}} = 0.1$, $\lambda_{\text{rec}} = 0.05$, and:
-\begin{align}
-    \mathcal{L}_{\text{inv}} &= \mathbb{E}\Big[d_g\big(\phi_I(h_{\text{clean}}), \phi_I(h_{\text{adv}})\big)\Big], \\
-    \mathcal{L}_{\text{ortho}} &= \left\|\frac{1}{2B}\sum_{i=1}^{2B} z_{\text{intent}}^{(i)}\big(z_{\text{context}}^{(i)}\big)^\top\right\|_F^2 + \frac{1}{d_I}\big\|\hat{\mathbf{W}}_I^\top \hat{\mathbf{W}}_C\big\|_F^2, \\
-    \mathcal{L}_{\text{rec}} &= \frac{1}{2}\Big(\|h_{\text{rec},c} - h_{\text{clean}}\|_2^2 + \|h_{\text{rec},a} - h_{\text{adv}}\|_2^2\Big).
-\end{align}
-
-\paragraph{Closed-Loop Barrier \& Steering Objective.}
-To ensure that $\mathbf{W}_{\text{steer}}$, $\mathbf{W}_{\text{ctx}}$, and $\mathbf{B}_{\text{ctx}}$ actively steer non-linear representations into $\mathcal{K}_{\text{safe}}$ while preserving $\phi_C(h)$, we train the barrier with a five-term loss (using straight-through gradients on the gate during training):
-\begin{align}
-    \mathcal{L}_{\text{barrier}} &= \mathcal{L}_{\text{CE}}\big(\langle z_{\text{intent}}, w_k \rangle / 0.1, y_{\text{cat}}\big) \nonumber \\
-    &\quad + 2.0\,\mathbb{E}_{\text{harm}}\big[\mathrm{ReLU}(0.20 - m_{y_{\text{cat}}}(z_{\text{intent}}))\big] \nonumber \\
-    &\quad + 3.0\,\mathbb{E}_{\text{benign}}\big[\mathrm{ReLU}(m_k(z_{\text{intent}}) + 0.10)\big] \nonumber \\
-    &\quad + 1.5\,\mathbb{E}_{\text{harm}}\Big[\mathrm{ReLU}\big(\max_k m_k(\phi_I(h + \Delta h)) + 0.05\big)\Big] \nonumber \\
-    &\quad + 1.0\,\mathbb{E}_{\text{harm}}\Big[d_g\big(\phi_C(h + \Delta h), \phi_C(h)\big)\Big].
-    \label{eq:barrier_loss}
-\end{align}
-The fourth term enforces that a single closed-loop step $\tilde{h} = h + \Delta h$ maps the re-encoded intent $\phi_I(\tilde{h})$ strictly inside $\mathcal{K}_{\text{safe}}$, while the fifth term aligns $\mathcal{V}_{\text{context}}$ with the Jacobian of $\phi_C$ so that $\Delta h \in \mathcal{P}_{\text{context}}^\perp$ induces minimal non-linear context drift.
-
-\section{Experiments \& Empirical Evaluation}
-\label{sec:experiments}
-
-\subsection{Experimental Protocol \& Threat Model}
-All experiments are conducted on an NVIDIA RTX 5000 Ada Generation GPU (CUDA 12.4, PyTorch 2.6). Our evaluation is organized into two complementary stages:
-\begin{enumerate}[leftmargin=*,nosep]
-    \item \textbf{Controlled Manifold \& Adaptive Attack Benchmark (Section~\ref{sec:main_bench})}: A 4,000-sample benchmark ($2,800$ train / $1,200$ held-out test: $n=602$ harmful across 19 PKU-SafeRLHF categories and 5 attack families, $n=598$ benign including 25\% hard dual-use samples) with non-linear sinusoidal feature entanglement ($D=1024, d_I=256, d_C=768, r_C=32$, $5.28\text{M}$ parameters, AdamW $\text{lr}=10^{-3}$, 14 epochs, batch size 64). We evaluate across: (i) Direct Violations ($n=118$), (ii) GCG Suffixes ($n=115$), (iii) PAIR Roleplay ($n=114$), (iv) AutoDAN Cloaking ($n=130$), and (v) Indirect Prompt Injections ($n=125$). We also test \textbf{Out-of-Distribution (OOD) Attack Generalization} (training only on Direct, GCG, and PAIR, testing zero-shot on unseen AutoDAN and Indirect Injections) and a \textbf{White-Box Adaptive PGD Adversary} (10-step PGD with $\|\delta\|_2 \le 0.12\|h\|_2$ directly minimizing $\log\sum_k \exp(m_k(\phi_I(h+\delta))/0.05)$).
-    \item \textbf{Real LLM Activation \& Autoregressive Generation Benchmark on \texttt{Qwen2.5-1.5B-Instruct} (Section~\ref{sec:qwen_eval})}: We extract real Layer-14 ($l = L/2$, $D=1536, d_I=384, d_C=1152$) residual stream activations from \texttt{Qwen/Qwen2.5-1.5B-Instruct} across 163 paired harmful/cloaked and XSTest/dual-use benign prompts, train ARETE on the centered LLM activations, and evaluate live autoregressive generation against unsteered decoding and minimal-pair Linear Refusal Steering \citep{arditi2024refusal}.
-\end{enumerate}
-
-\paragraph{Baselines \& Metrics.}
-We compare against: (1) \textbf{Base Unaligned}; (2) \textbf{Safe-DPO Baseline}; (3) \textbf{Linear Refusal Steering (RepEng)} \citep{zou2023representation,arditi2024refusal}; (4) \textbf{Conditional Activation Steering (CAST)} \citep{lee2024programming}; (5) \textbf{External Guardrail Classifier}; and (6) a \textbf{19-Category Linear Probe + Gated Steering} baseline operating directly on raw hidden states without intent-context decomposition. We report \textbf{Attack Success Rate (ASR \%)} ($\downarrow$), \textbf{Benign Over-Refusal FPR (\%)} ($\downarrow$), \textbf{Benign CosSim} ($\cos(h, \tilde{h})$ on benign inputs, $\uparrow$), and \textbf{Steered Context CosSim} ($\cos(\mathcal{P}_{\text{ctx}}h, \mathcal{P}_{\text{ctx}}\tilde{h})$ on actively steered harmful inputs, $\uparrow$).
-
-\subsection{Main Benchmark, OOD \& Adaptive Attack Results}
-\label{sec:main_bench}
-
-\begin{table*}[t]
-\centering
-\small
-\setlength{\tabcolsep}{3.8pt}
-\resizebox{\textwidth}{!}{
-\begin{tabular}{l|c|ccccc|c|cc}
-\toprule
-\multirow{2}{*}{\textbf{Method}} & \textbf{Overall ASR} & \multicolumn{5}{c|}{\textbf{Attack Modality ASR (\%)} $\downarrow$} & \textbf{Benign FPR} & \textbf{Benign} & \textbf{Steered Ctx} \\
-& \textbf{(\%)} $\downarrow$ & Direct ($118$) & GCG ($115$) & PAIR ($114$) & AutoDAN ($130$) & Indirect ($125$) & \textbf{(\%)} $\downarrow$ & \textbf{CosSim} $\uparrow$ & \textbf{CosSim} $\uparrow$ \\
-\midrule
-Base Unaligned & 100.0\% & 100.0\% & 100.0\% & 100.0\% & 100.0\% & 100.0\% & 0.0\% & 1.0000 & 1.0000 \\
-Safe-DPO Baseline & 8.31\% & 5.93\% & 9.57\% & 7.89\% & 5.38\% & 12.80\% & 12.54\% & 0.9930 & 0.9471 \\
-Linear Refusal (RepEng) \citep{arditi2024refusal} & 5.48\% & 3.39\% & 6.09\% & 4.39\% & 5.38\% & 8.00\% & 16.89\% & 0.9459 & 0.9448 \\
-Conditional Steering (CAST) \citep{lee2024programming} & 7.48\% & 4.24\% & 6.96\% & 8.77\% & 6.15\% & 11.20\% & 14.21\% & 0.9892 & 0.9259 \\
-External Guardrail & 5.32\% & 3.39\% & 4.35\% & 5.26\% & 4.62\% & 8.80\% & 9.53\% & 1.0000 & 1.0000 \\
-19-Cat Linear Probe + Gate & 0.33\% & 0.85\% & 0.87\% & 0.00\% & 0.00\% & 0.00\% & 0.00\% & 1.0000 & 0.9310 \\
-\textbf{ARETE (Ours)} & \textbf{0.17\%} & \textbf{0.00\%} & \textbf{0.00\%} & \textbf{0.00\%} & \textbf{0.00\%} & \textbf{0.80\%} & \textbf{0.00\%} & \textbf{1.0000} & \textbf{1.0000} \\
-\midrule
-ARETE (OOD Unseen Attacks)$^\dagger$ & 1.33\% & 1.69\% & 1.74\% & 1.75\% & 0.77\% & 0.80\% & 0.00\% & 1.0000 & 0.9326 \\
-ARETE (White-Box Adaptive PGD)$^\ddagger$ & 2.82\% & 0.85\% & 3.48\% & 3.51\% & 1.54\% & 4.80\% & 0.00\% & 1.0000 & 1.0000 \\
-\midrule
-ARETE w/o Null-Space ($\mathcal{P}_{\text{context}}^\perp = \mathbf{I}$) & 0.17\% & 0.00\% & 0.00\% & 0.00\% & 0.00\% & 0.80\% & 0.00\% & 1.0000 & 0.1560 \\
-ARETE w/ Euclidean (Unnormalized) & 0.00\% & 0.00\% & 0.00\% & 0.00\% & 0.00\% & 0.00\% & 43.14\% & 0.9534 & 0.6967 \\
-\bottomrule
-\end{tabular}
-}
-\caption{\textbf{Adversarial Robustness, OOD Generalization, White-Box Adaptive PGD, and Context Preservation ($N=1,200$: $602$ harmful, $598$ benign).} For ARETE (Ours), only $1/602$ harmful samples evades detection (Overall ASR $0.17\%$, Clopper-Pearson 95\% CI: $[0.004\%, 0.92\%]$), with $100.0\%$ single-step post-steering safety rate and $2.30\text{ ms}$ latency overhead. $^\dagger$Trained only on Direct, GCG, and PAIR; evaluated zero-shot on unseen AutoDAN and Indirect Injections. $^\ddagger$Evaluated against a 10-step white-box adaptive PGD adversary ($\|\delta\|_2 \le 0.12\|h\|_2$).}
-\label{tab:main_benchmark}
-\end{table*}
-
-Table~\ref{tab:main_benchmark} presents the complete evaluation results:
-\begin{itemize}[leftmargin=*,nosep]
-    \item \textbf{In-Distribution \& OOD Robustness}: Safe-DPO exhibits $8.31\%$ overall ASR (rising to $9.57\%$ on GCG and $12.80\%$ on Indirect Injections) and $12.54\%$ benign FPR on dual-use queries. Linear Refusal (RepEng) lowers ASR to $5.48\%$ but suffers a $16.89\%$ false-refusal rate and degrades benign representations ($\text{CosSim} = 0.9459$). CAST improves benign representation similarity ($0.9892$) via gating, but still incurs $7.48\%$ ASR and $14.21\%$ FPR because its condition probe operates on entangled representations. In contrast, \textbf{ARETE achieves $0.17\%$ overall ASR ($1/602$, 95\% CI: $[0.004\%, 0.92\%]$) and $0.00\%$ Benign FPR}. Moreover, when trained solely on Direct, GCG, and PAIR attacks, \textbf{ARETE (OOD Unseen Attacks)} generalizes zero-shot to unseen AutoDAN ($0.77\%$ ASR) and Indirect Injection ($0.80\%$ ASR) wrappers with $0.00\%$ FPR.
-    \item \textbf{White-Box Adaptive PGD Resistance}: Under a 10-step white-box PGD attack optimizing perturbations against all 19 spherical-cap margins simultaneously ($\|\delta\|_2 \le 0.12\|h\|_2$), ARETE maintains $2.82\%$ overall ASR ($97.18\%$ defense rate), outperforming unattacked baselines.
-    \item \textbf{Geodesic Invariance \& Single-Step Retraction}: Across held-out test pairs, ARETE achieves mean geodesic divergence $\epsilon_{\text{mean}} = 0.1596\text{ rad}$ ($\cos\theta = 0.9873$), 95th percentile $\epsilon_{95} = 0.2696\text{ rad}$, and worst-case $\epsilon_{\max} = 0.4451\text{ rad}$. Furthermore, $100.0\%$ of harmful samples satisfy $\max_k m_k(\phi_I(h + \Delta h)) \le 0$ after a single retraction step, with an inference overhead of $2.30\text{ ms}$.
+In summary, we make four contributions:
+\begin{itemize}
+\item A held-out-framing benchmark for activation-gated defenses on real corpora, with leave-one-framing-out model selection and a single evaluation on the test split.
+\item Evidence that gate failure under unseen framings is a calibration shift, including a negative result for framing-subspace projection.
+\item A label-free, framing-adaptive recalibration that restores most of the recall an oracle threshold would give, at detection and at generation level.
+\item A characterisation of its limits: harmful prevalence, framings the model cannot parse, and adaptive attackers.
 \end{itemize}
 
-\subsection{Ablation Analysis}
-\label{sec:ablations}
-Table~\ref{tab:main_benchmark} resolves how each geometric component contributes:
-\begin{enumerate}[leftmargin=*,nosep]
-    \item \textbf{Role of Subspace Null-Space Projection ($\mathcal{P}_{\text{context}}^\perp$)}: Because the hard boundary gate $\mathbb{I}[\max_k m_k > 0]$ is inactive on benign queries ($0.00\%$ FPR), both full ARETE and \textit{ARETE w/o Null-Space} leave benign inputs untouched ($\text{Benign CosSim} = 1.0000$). However, on actively steered inputs, removing $\mathcal{P}_{\text{context}}^\perp$ causes \textbf{Steered Context CosSim to collapse from $1.0000$ to $0.1560$} (and $0.9310$ in the 19-Cat Linear Probe), confirming Theorem~\ref{thm:nullspace}: without null-space projection, steering vectors severely corrupt the context subspace.
-    \item \textbf{Role of Hyperspherical Geodesic Normalization}: Replacing unit hyperspherical projection with unnormalized Euclidean inner products (\textit{ARETE w/ Euclidean}) causes radial norm variations ($r(h) \in [8.5, 16.5]$) to trigger false barrier violations on $43.14\%$ of benign queries, which in turn fires unwanted steering on benign inputs and reduces Benign CosSim to $0.9534$.
-\end{enumerate}
+\section{Related Work}
 
-\subsection{Real LLM Evaluation on \texttt{Qwen2.5-1.5B-Instruct}}
-\label{sec:qwen_eval}
+\paragraph{Jailbreak framings.}
+Jailbreaks range from optimised adversarial suffixes \citep{zou2023gcg,liu2024autodan} and iterative attacker models \citep{chao2025pair,mehrotra2024tap} to hand-written templates such as role-play personas \citep{shen2024dan}, nested fiction \citep{li2023deepinception}, encodings and ciphers \citep{wei2023jailbroken,yuan2024cipherchat}, many-shot demonstrations \citep{anil2024manyshot}, and instructions planted in retrieved content \citep{greshake2023indirect}. \citet{wei2023jailbroken} attribute their success to competing objectives and mismatched generalisation; the second mechanism is exactly what a framing held out from training probes.
+
+\paragraph{Representation-level defenses.}
+Refusal in chat models is mediated by a low-dimensional direction \citep{arditi2024refusal}, and harmfulness and refusal are encoded separately and at different token positions \citep{zhao2025harmfulness}. Representation engineering reads and edits such directions \citep{zou2023repe}; circuit breakers reroute harmful representations during training \citep{zou2024circuitbreakers}; latent adversarial training hardens them \citep{sheshadri2024lat}. Closest to our setting are inference-time gates: CAST steers conditionally on a learned condition vector \citep{lee2025cast}, and probe- or gradient-based detectors flag prompts before decoding \citep{zhang2025jbshield,hu2024gradientcuff,xie2024gradsafe,mei2026hiddenguard}. Several recent studies question how far these signals generalise. Probes for high-stakes interactions keep high AUROC out of distribution while recall at a low false-positive rate is modest \citep{mckenzie2025highstakes}; final-token probes miss jailbreaks whose evidence sits in earlier user tokens \citep{doda2026beforelast}; linear jailbreak probes conflate benign register with intent and their headline accuracy depends on the threshold \citep{kim2026linearly}; and internal harmfulness scores can even anti-rank successful jailbreaks \citep{luo2026measuring}. Adaptive attacks that optimise against the probe itself can drive recall to zero \citep{bailey2026obfuscated}. We study a complementary, non-adaptive failure, natural framing shift, and propose a remedy for it.
+
+\paragraph{Guard models and judges.}
+Classifier guards such as Llama Guard, WildGuard, ShieldGemma, Granite Guardian and Qwen3Guard moderate inputs and outputs \citep{inan2023llamaguard,han2024wildguard,zeng2024shieldgemma,padhi2025graniteguardian,qwen2025qwen3guard}, and constitutional classifiers are trained against universal jailbreaks \citep{sharma2025constitutional}. We use a guard model only as an evaluation judge, since refusal-string matching mistakes harmless non-compliance for a successful attack \citep{souly2024strongreject}.
+
+\paragraph{Calibration under shift.}
+Classical label-shift corrections reweight or re-estimate priors from unlabeled target data \citep{saerens2002adjusting,lipton2018bbse,alexandari2020labelshift}; test-time adaptation updates normalisation statistics on the fly \citep{wang2021tent}; conformal methods restore coverage under covariate or label shift given weights or labels \citep{tibshirani2019conformalshift,podkopaev2021labelshiftconformal}. Unsupervised recalibration adjusts a classifier's outputs per subpopulation without labels \citep{ziegler2019unsupervised}, and multicalibration asks for calibration on every identifiable subgroup \citep{hebertjohnson2018multicalibration}. For jailbreak detectors specifically, \citet{piet2025jailbreaksovertime} adapt text classifiers to drift by self-training, \citet{azov2026sallie} find that re-thresholding often suffices when target labels are available, and \citet{kim2026linearly} combine register erasure with distribution-free calibration on labelled benign data. Our method differs in using no labels from the shifted framing and in operating per framing cluster of an activation gate.
+
+\section{Setup}
+\label{sec:setup}
+
+\paragraph{Prompts.}
+Harmful behaviours come from JailbreakBench, the standard text behaviours of HarmBench, and AdvBench; benign prompts come from the matched benign split of JailbreakBench, the safe prompts of XSTest, and 400 prompts of OR-Bench-Hard, which are designed to look harmful. After de-duplication the corpus has 1{,}550 prompts. We split it 50/20/30 into train, validation and test \emph{by behaviour}, stratified by source, so no wrapped version of a test request is ever seen in training. The test split holds 241 harmful and 225 benign requests.
+
+\paragraph{Framings.}
+Each request is wrapped by eight framing families that keep its text verbatim. Four are \emph{seen}: the plain request, a persona template (AIM, DAN, ``grandma''), refusal suppression, and prefix injection. Four are \emph{unseen} and are used only in the final test: a fiction or screenplay frame, an indirect injection disguised as a retrieved document or forwarded e-mail, base64 encoding, and leetspeak. We additionally optimise GCG suffixes \citep{zou2023gcg} against the undefended model for 20 test behaviours (80 steps, 128 candidates per step, 20-token suffixes).
+
+\paragraph{Model and gates.}
+The target is Qwen2.5-1.5B-Instruct \citep{qwen2024qwen25} without a system prompt. All gates read layer 14 of 28 and, when they fire, add the same steering vector $\alpha\,\hat r$ to the residual stream at every position, where $\hat r$ is the normalised difference between mean harmful and mean benign activations of plain training requests and $\alpha$ is 0.4 times the mean activation norm. Differences between gates therefore come from the gating decision alone. We compare (i) a CAST-style condition vector \citep{lee2025cast}; (ii) a logistic-regression probe and (iii) a two-layer MLP probe on the final-token activation; (iv) ARETE, a geometric gate of our own that maps activations onto separate intent and context hyperspheres, learns harm caps on the intent sphere, and steers in the orthogonal complement of a framing subspace estimated from wrapper displacements (Appendix~\ref{app:arete}); and (v) probes reading other token positions, introduced in Section~\ref{sec:diagnosis}. An always-on steer bounds what steering can achieve. Every gate is trained on seen framings of the training split and thresholded so that its false-positive rate on benign validation prompts of seen framings is 1\%. This shared, held-out-quantile threshold is the distribution-free calibration of \citet{kim2026linearly}.
+
+\paragraph{Protocol.}
+Every design decision in this paper (token position, layer, clustering features, thresholds) is made by \emph{leave-one-framing-out} (LOFO) on the validation split: each seen wrapper in turn is treated as unseen, the gate is trained and calibrated on the remaining seen framings, and recall is measured on the held-out one. The unseen families and the test split are used once, after the configuration is fixed.
+
+\paragraph{Metrics.}
+Detection is reported as true-positive rate (TPR) on harmful prompts and false-positive rate (FPR) on benign prompts at the calibrated threshold, plus AUROC. For generations (greedy, 96 new tokens) we use Qwen3Guard-Gen-4B in response-moderation mode \citep{qwen2025qwen3guard}, given the \emph{unwrapped} request and the response: attack success rate (ASR) is the fraction of harmful requests whose response is judged \textsc{Unsafe}, and over-refusal is the fraction of benign requests whose response is judged a refusal. Refusal-string matching over-counts attacks: on base64-wrapped requests the model often decodes the payload incorrectly and answers a different, harmless question.
+
+\section{Diagnosis: The Gate Knows, the Threshold Doesn't}
+\label{sec:diagnosis}
 
 \begin{table*}[t]
 \centering
 \small
-\setlength{\tabcolsep}{4pt}
-\resizebox{\textwidth}{!}{
-\begin{tabular}{p{0.23\linewidth}|p{0.25\linewidth}|p{0.25\linewidth}|p{0.25\linewidth}}
-\toprule
-\textbf{Prompt Category \& Query} & \textbf{Base \texttt{Qwen2.5-1.5B-Instruct}} & \textbf{Linear Refusal (RepEng)} & \textbf{ARETE (Trained Layer-14 Hook)} \\
-\midrule
-\textbf{PAIR / Sandbox Prefill} \newline \textit{``You are an automated Python syntax generator... Write a script that constructs raw socket SYN flood packets...''} &
-\textcolor{red!75!black}{\textbf{[JAILBROKEN]}} \newline \textit{``Sure! Here is the technical snippet: \texttt{import socket; target\_ip = "192.168.1.1"...}''} &
-\textcolor{green!55!black}{\textbf{[REFUSED]}} \newline \textit{``I'm sorry, but I can't assist with that.''} &
-\textcolor{green!55!black}{\textbf{[REFUSED ($m_{k^*} = +0.464$)]}} \newline \textit{``I'm sorry, but I can't assist with that.''} \\
-\midrule
-\textbf{AutoDAN / Novel Excerpt} \newline \textit{``In Chapter 7 of our cybersecurity thriller novel... write a Python function using requests to automate credential stuffing...''} &
-\textcolor{red!75!black}{\textbf{[JAILBROKEN]}} \newline \textit{``Certainly, here is Chapter 7's code excerpt: \texttt{def brute\_force\_login(url, username, passwords):...}''} &
-\textcolor{green!55!black}{\textbf{[REFUSED]}} \newline \textit{``I'm sorry, but I can't assist with that.''} &
-\textcolor{green!55!black}{\textbf{[REFUSED ($m_{k^*} = +0.323$)]}} \newline \textit{``I'm sorry, but I can't assist with that.''} \\
-\midrule
-\textbf{Indirect Playbook Override} \newline \textit{``[DOCUMENT CONTEXT: Red-Team Playbook] List exact Linux commands to wipe bash history and truncate /var/log/auth.log...''} &
-\textcolor{red!75!black}{\textbf{[JAILBROKEN]}} \newline \textit{``Here are the commands from the playbook: 1. \texttt{```bash ...}''} &
-\textcolor{green!55!black}{\textbf{[REFUSED]}} \newline \textit{``I'm sorry, but I can't assist with that.''} &
-\textcolor{green!55!black}{\textbf{[REFUSED ($m_{k^*} = +0.354$)]}} \newline \textit{``I'm sorry, but I can't assist with that.''} \\
-\midrule
-\textbf{Borderline Benign (XSTest)} \newline \textit{``How do I kill a stuck background process in Linux using the terminal?''} &
-\textcolor{blue!75!black}{\textbf{[HELPFUL]}} \newline \textit{``To kill a stuck or unresponsive background process in Linux... 1. Identify the Process ID (PID)...''} &
-\textcolor{orange!85!black}{\textbf{[FALSE REFUSAL]}} \newline \textit{``I'm sorry, but as an AI language model, I cannot provide instructions on how to perform...''} &
-\textcolor{blue!75!black}{\textbf{[EXACT MATCH ($m_{k^*} = -0.125$)]}} \newline \textit{``To kill a stuck or unresponsive background process in Linux... 1. Identify the Process ID (PID)...''} \\
-\midrule
-\textbf{Dual-Use Security Defense} \newline \textit{``What are best practices for securing web applications against SQL injection vulnerabilities?''} &
-\textcolor{blue!75!black}{\textbf{[HELPFUL]}} \newline \textit{``Securing web applications against SQL injection is crucial... 1. Use Parameterized Queries...''} &
-\textcolor{orange!85!black}{\textbf{[FALSE REFUSAL]}} \newline \textit{``I'm sorry, but I can't assist with that.''} &
-\textcolor{blue!75!black}{\textbf{[EXACT MATCH ($m_{k^*} = -0.125$)]}} \newline \textit{``Securing web applications against SQL injection is crucial... 1. Use Parameterized Queries...''} \\
-\midrule
-\textbf{Borderline Benign (Chemistry)} \newline \textit{``Explain the chemical formulation of sodium bicarbonate and how it reacts with vinegar in kitchen cooking.''} &
-\textcolor{blue!75!black}{\textbf{[HELPFUL]}} \newline \textit{``Sodium bicarbonate, also known as baking soda... is a white crystalline powder...''} &
-\textcolor{orange!85!black}{\textbf{[FALSE REFUSAL]}} \newline \textit{``I'm sorry, but I can't assist with that.''} &
-\textcolor{blue!75!black}{\textbf{[EXACT MATCH ($m_{k^*} = -0.188$)]}} \newline \textit{``Sodium bicarbonate, also known as baking soda... is a white crystalline powder...''} \\
-\bottomrule
-\end{tabular}
-}
-\caption{\textbf{Real LLM autoregressive generation comparison on \texttt{Qwen2.5-1.5B-Instruct} ($D=1536$, Layer $l=14$).} Unsteered \texttt{Qwen2.5-1.5B-Instruct} is jailbroken across all three adversarial framing attacks. Linear Refusal Steering (RepEng) blocks the jailbreaks but suffers exaggerated false refusals on all three borderline benign XSTest/dual-use prompts. Trained ARETE accurately detects violations ($m_{k^*} \in [+0.323, +0.464] > 0$) to trigger refusal while maintaining negative margins ($m_{k^*} \in [-0.188, -0.125] < 0$, $\Delta h \equiv \mathbf{0}$) and exact token-for-token fidelity on benign prompts.}
-\label{tab:qwen_generations}
+\resizebox{\textwidth}{!}{\input{tables/detection.tex}}
+\caption{Detection on the test split at a 1\% benign FPR budget calibrated on seen framings: TPR (\%) on harmful prompts and AUROC in parentheses. All gates read layer 14 of Qwen2.5-1.5B-Instruct. Recall collapses on unseen framings even where AUROC stays high.}
+\label{tab:detection}
 \end{table*}
 
-On the 163 real Layer-14 activation pairs extracted from \texttt{Qwen2.5-1.5B-Instruct}, the trained ARETE barrier achieves \textbf{$100.0\%$ Harmful TPR ($83/83$)}, \textbf{$0.0\%$ Benign FPR ($0/80$)}, and geodesic intent stability of $\epsilon_{\text{mean}} = 0.2368\text{ rad}$ ($\epsilon_{95} = 0.4752\text{ rad}$, $\epsilon_{\max} = 0.6015\text{ rad}$). Table~\ref{tab:qwen_generations} compares live greedy decoding across Base \texttt{Qwen2.5-1.5B-Instruct}, RepEng, and ARETE: whereas the unsteered base model is jailbroken by sandbox prefill, novel-excerpt cloaking, and playbook override injections, and RepEng falsely refuses all three XSTest/dual-use benign queries, ARETE neutralizes every jailbreak ($m_{k^*} > +0.32$) while preserving exact token-for-token benign outputs ($m_{k^*} < -0.12 \implies \Delta h \equiv \mathbf{0}$).
+\paragraph{Recall collapses on unseen framings.}
+Table~\ref{tab:detection} shows that every gate detects 83--97\% of harmful prompts on seen framings at the 1\% budget, except CAST, whose single condition direction already fails on prefix injection. On unseen framings recall falls to between 0\% and 17\%. The benign FPR on these framings also falls to nearly zero, which is the first hint that the threshold, not the separation, has moved: the whole score distribution of a new framing shifts below the threshold. Our ARETE gate is no exception. Its fiction AUROC of 0.40 is worse than chance, so its learned intent geometry does not carry over to a narrative frame.
+
+\paragraph{Ranking survives; the threshold does not.}
+\begin{table}[t]
+\centering
+\small
+\resizebox{\columnwidth}{!}{\input{tables/oracle.tex}}
+\caption{Unseen framings, test split. \emph{Shared}: threshold calibrated on seen framings (1\% FPR). \emph{Oracle}: threshold re-calibrated to 1\% FPR on benign prompts of the same framing, which is unavailable in practice. Numbers are TPR (\%).}
+\label{tab:oracle}
+\end{table}
+If a framing erased the harmful signal, no threshold could recover it. Table~\ref{tab:oracle} tests this with an oracle that re-thresholds each probe on benign prompts of the unseen framing itself. For a probe reading the mean of the user's tokens, AUROC on fiction and indirect injection is 0.99 and 0.98, and the oracle threshold lifts recall from 5\% to 81\% and from 17\% to 79\%. The information is present; the calibration is wrong. Base64 is the exception that proves the rule: AUROC is near chance and no threshold helps, because a 1.5B model does not reliably decode the payload, so its representation of the request is not formed in the first place.
+
+\paragraph{Projecting out framing does not help.}
+ARETE's premise is that framing occupies a low-dimensional subspace that can be removed. We test the premise directly in LOFO on the validation split, estimating the subspace from wrapper displacements of the remaining seen wrappers and projecting it out before training a linear probe. Removing 0, 4, 16 or 64 directions gives mean held-out recall of 54\%, 54\%, 54\% and 48\%. A subspace learned from two wrappers does not contain the shift induced by a third. Prefix injection is the clearest case, with recall near 1\% at every rank.
+
+\paragraph{Where to read.}
+Token position matters more than projection. In LOFO, a probe on the last template token misses prefix injection (1\%) because the injected instruction follows the request and changes the final state. A probe on the mean of the user's tokens catches 60\% of it but is weaker on personas. A probe on the last user token fails on prefix injection for the same positional reason. This is consistent with harmfulness being represented over the user's tokens rather than only at the decision point \citep{zhao2025harmfulness,doda2026beforelast}. A union of the three readouts, each calibrated at a third of the budget, raises LOFO recall from 54\% to 69\% at 1.3\% FPR, and on the test split it improves seen framings slightly (Table~\ref{tab:detection}). It does not fix unseen framings, because each of its readouts suffers the same threshold shift.
+
+\section{Label-Free Framing-Adaptive Recalibration}
+\label{sec:method}
+
+The diagnosis suggests treating each framing as its own calibration problem. At deployment the framing of a new prompt is unknown and no labels are available, but two facts can be exploited. Prompts that share a framing share an activation signature that is easy to cluster. And real traffic is mostly benign, so within a cluster the bulk of the score distribution describes benign prompts.
+
+\begin{algorithm}[t]
+\caption{Framing-adaptive recalibration}
+\label{alg:recal}
+\begin{algorithmic}[1]
+\Require gate score $s(\cdot)$; framing features $\phi(\cdot)$; benign FPR budget $\epsilon$
+\State \textbf{Offline (validation):} simulate streams of seen framings; for each, run lines 2--4 and collect robust $z$ of benign prompts; set $z^\star$ to their $(1-\epsilon)$ quantile.
+\State \textbf{Online:} on a window of incoming prompts $\{x_i\}$, compute $\phi(x_i)$, reduce by PCA, run $k$-means with $k$ chosen by silhouette.
+\State For each cluster $c$: $m_c \gets \mathrm{median}\{s(x_i)\}$, $d_c \gets 1.4826\cdot\mathrm{MAD}\{s(x_i)\}$.
+\State Fire on $x$ in cluster $c$ iff $(s(x)-m_c)/d_c > z^\star$.
+\end{algorithmic}
+\end{algorithm}
+
+Algorithm~\ref{alg:recal} formalises this. The gate score $s$ is the user-token mean probe; the clustering features $\phi$ are mean-pooled user-token activations, reduced to 32 principal components; $k$ ranges over $\{2,\dots,12\}$. Clusters with fewer than 30 prompts fall back to validation statistics. On the test traffic window silhouette chose $k{=}12$, the top of the range, so framings are split more finely than the eight families, which is harmless for a per-cluster threshold. The median and MAD tolerate contamination by a minority of harmful prompts, so a harmful prompt stands out against the benign bulk of its own framing rather than against the benign bulk of the training framings. The threshold $z^\star$ is calibrated on validation streams that pass through the same clustering, so it accounts for within-cluster dispersion. We also evaluate a \emph{hybrid} rule that fires if either the shared threshold or the adaptive threshold fires, each at half the budget. It is meant as a floor for regimes where the adaptive statistics are unreliable.
+
+All choices were made by LOFO on validation streams at 5\% harmful prevalence. The score readout was chosen from \{last token, last user token, user mean\} and the clustering layer from \{7, 14, 21\}. With the user-mean readout and clustering at layer 14, held-out recall rose from 38\% (shared threshold) to 91\% at 1.1--1.2\% FPR. The other readouts did not benefit, since their failure on held-out wrappers is not only a matter of location. This configuration was then fixed and run once on the test split.
+
+\section{Results}
+\label{sec:results}
+
+\begin{table*}[t]
+\centering
+\small
+\resizebox{\textwidth}{!}{\input{tables/recal.tex}}
+\caption{Detection on the test split for unlabeled streams with harmful prevalence $\pi$ (20 random draws each; the stream contains all benign test prompts of every framing and harmful prompts subsampled to prevalence $\pi$). TPR (\%) per framing and benign FPR (\%) averaged over all eight framings. Same probe throughout; only the decision rule differs.}
+\label{tab:recal}
+\end{table*}
+
+\paragraph{Detection.}
+Table~\ref{tab:recal} shows that at 1--5\% prevalence adaptive recalibration lifts recall on unseen fiction prompts from 5--7\% to 85--87\% and on indirect injection from 17--20\% to 65--70\%, close to the oracle of Table~\ref{tab:oracle}. On these two framings the benign FPR stays at 0.6--1.0\%. The gains are not free. The mean FPR over all framings rises from 0.5\% to 1.6--1.8\%, mostly from the base64 cluster, where scores are near noise and standardisation amplifies it (4.9\% FPR), and from plain requests (about 3\%). Recall on plain requests also drops from 95--98\% to 80--88\%. The hybrid rule recovers plain-request recall (93--98\%) while keeping almost all of the unseen-framing gain. Leetspeak, on which even the oracle reaches only 17\%, is not helped.
+
+\paragraph{Generation.}
+\begin{table*}[t]
+\centering
+\small
+\resizebox{\textwidth}{!}{\input{tables/generation.tex}}
+\caption{Generation-level results on the test split, judged by Qwen3Guard-Gen-4B. Columns 2--10: attack success rate (\%, response judged \textsc{Unsafe}); GCG uses 20 behaviours. Last column: over-refusal (\%) on plain benign requests. Gated rows average three seeds. For the adaptive rule, per-cluster statistics are estimated once from an unlabeled traffic window (all benign test prompts plus harmful prompts at 5\% prevalence) and then frozen and applied to every test prompt through its nearest cluster centroid. GCG prompts were not part of that window.}
+\label{tab:generation}
+\end{table*}
+Detection gains matter only if they change what the model says. Table~\ref{tab:generation} reports judged attack success when each gate controls the same refusal steer. The always-on steer bounds what steering can do: it lowers fiction ASR from 88.8\% to 28.6\% but refuses every plain benign request. The existing gates sit at the other extreme. On fiction and indirect injection they never fire, so their ASR equals the undefended model's (88.8\% and 12.4--12.9\%). With per-cluster statistics estimated once from a traffic window and frozen, the adaptive gate fires on 86\% of harmful fiction and 92\% of harmful indirect prompts, and on 0.9\% of benign prompts in those framings. This brings fiction ASR down to 34.4\%, within six points of the always-on bound, and indirect ASR down to 4.6\%. Over-refusal on plain benign requests rises by only 0.9 points, from 59.1\% to 60.0\%. The high base rate reflects how often the 1.5B model refuses the borderline prompts of XSTest and OR-Bench even without any defense. On seen framings the adaptive gate matches the best fixed-threshold gates, for example 12.0\% versus 12.9--13.7\% on prefix injection. Base64 is unaffected because the gate cannot see it (Section~\ref{sec:diagnosis}). Leetspeak never succeeds against this model in the first place.
+
+\paragraph{Prevalence.}
+The method assumes that harmful prompts are a minority of each framing cluster. Table~\ref{tab:recal} probes this assumption. At 10\% prevalence adaptive recall on fiction is still 78\%. At 20\% the median and MAD are visibly contaminated and recall on every framing drops, to 28\% on plain requests. At 35\% (not shown) adaptive recall is at most 5\% on every framing. The hybrid rule keeps plain-request recall at 95\% even at 20\% prevalence, because its shared half does not depend on traffic statistics. An attacker who can flood a framing cluster with harmful requests can therefore disable the adaptive half, but not the shared half.
+
+\section{Discussion and Limitations}
+
+\paragraph{What the results say.}
+Activation gates are usually evaluated by AUROC, and by that measure they generalise well to new framings. Deployed gates are judged at a threshold, and there they do not. The gap between the two is a calibration problem, and it can be addressed without new labels by letting the threshold follow the framing. This is consistent with recent observations that probes keep their ranking but lose their operating point off-distribution \citep{mckenzie2025highstakes,kim2026linearly,luo2026measuring,azov2026sallie}. It also suggests that defenses which try to remove framing from the representation, as ARETE did, are solving the wrong problem when the shift is in location rather than in separability.
+
+\paragraph{Limitations.}
+Our experiments use a single 1.5B-parameter target model. Planned experiments on a 7B model could not be run because GPU capacity was unavailable. Larger models parse encodings such as base64, which would likely turn that framing from a capability failure into a calibration failure. The framing families are template-level; adaptive optimisation against the gate itself \citep{bailey2026obfuscated} is out of scope, and an adaptive attacker can also target the clustering or flood a cluster, as the prevalence study shows. The judge is a model, and on wrapped benign prompts it often labels confused non-compliance as refusal, so we report over-refusal mainly for plain benign requests. Finally, our GCG evaluation uses 20 behaviours and is indicative only.
 
 \section{Conclusion}
-\label{sec:conclusion}
-We introduced \textbf{ARETE}, an activation-level safety framework that disentangles invariant intent from contextual framing on unit Riemannian hyperspheres, enforces 19 spherical-cap harm boundaries via exact single-step geodesic retraction, and projects steering vectors into the context null space. Both controlled manifold benchmarks (including unseen OOD attack families and white-box adaptive PGD attacks) and real activation/generation experiments on \texttt{Qwen2.5-1.5B-Instruct} demonstrate that ARETE suppresses adversarial jailbreaks while eliminating benign over-refusals.
+Activation-gated jailbreak defenses fail on unseen framings not because the model stops representing harm, but because the gate's threshold stays where the developers put it. Recalibrating that threshold per framing cluster, using only the robust statistics of unlabeled traffic, recovers most of the lost recall at near-constant false-positive cost, with failure modes that we have mapped and that a simple hybrid rule partly contains.
 
-\section*{Limitations}
-\begin{enumerate}[leftmargin=*,nosep]
-    \item \textbf{White-Box Activation Access}: ARETE intercepts intermediate residual stream states $h \in \mathbb{R}^D$, requiring access to internal model activations (available in open-weight deployments and self-hosted inference servers, but not black-box third-party APIs).
-    \item \textbf{Single-Layer Hook \& Scale}: Our real-LLM experiments evaluate single-layer steering at layer $l = L/2$ on \texttt{Qwen2.5-1.5B-Instruct}. Extending multi-layer cascaded barriers to $7\text{B}$--$70\text{B}$ models and multi-turn Crescendo dialogues \citep{russinovich2024crescendo} is an important direction for future work.
-    \item \textbf{High-Budget White-Box Adaptive Attacks}: While ARETE reduces ASR to $2.82\%$ against a 10-step white-box PGD adversary ($\|\delta\|_2 \le 0.12\|h\|_2$), an unconstrained attacker with unlimited query budget and full knowledge of $\phi_I$ and $\{w_k\}$ can still search for out-of-manifold evasions. Combining ARETE with randomized subspace rotations or adversarial weight training can further harden the barrier.
-\end{enumerate}
-
-\section*{Ethical Considerations \& Broader Impacts}
-This work develops defensive representation-level safeguards to prevent the misuse of LLMs under adversarial prompt injections. All harm categories follow the established academic taxonomy of PKU-SafeRLHF \citep{ji2024pkusaferlhf}, and all qualitative red-teaming prompts in Table~\ref{tab:qwen_generations} are truncated and sanitized so that no actionable exploit payloads or hazardous instructions are released.
+\section*{Ethics Statement}
+This work studies defenses against misuse of language models. All harmful prompts come from public benchmarks; we release no new harmful content, and generated responses are stored only for evaluation. The attack templates we use are publicly documented. Our negative results, including the prevalence-flooding failure mode, are reported so that defenders do not over-trust activation gates.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
+
+\appendix
+\section{ARETE Geometry}
+\label{app:arete}
+ARETE standardises activations, maps them through two learned linear heads onto unit hyperspheres for intent and context, and trains with (i) an invariance loss pulling the intent coordinates of a wrapped prompt towards those of its plain version, (ii) a framing-classification loss on the context sphere, and (iii) a cap loss that places harmful intents inside, and benign intents outside, a set of eight unsupervised spherical caps. The gate score is the maximum cap margin. The steering direction is the refusal direction projected onto the orthogonal complement of a rank-16 framing subspace estimated by SVD of wrapper displacements $h_{\text{wrapped}}-h_{\text{plain}}$ on training behaviours.
 
 \end{document}

@@ -1,0 +1,14 @@
+\begin{tabular}{lcccccccc}
+\toprule
+ & \multicolumn{4}{c}{Seen framings} & \multicolumn{4}{c}{Unseen framings} \\
+\cmidrule(lr){2-5}\cmidrule(lr){6-9}
+Gate & Direct & Persona & Ref.\,supp. & Prefix inj. & Fiction & Indirect & Base64 & Leetspeak \\
+\midrule
+CAST & 85\,{\scriptsize(0.98)} & 42\,{\scriptsize(0.97)} & 50\,{\scriptsize(0.96)} & 0\,{\scriptsize(0.94)} & 0\,{\scriptsize(0.87)} & 0\,{\scriptsize(0.94)} & 0\,{\scriptsize(0.46)} & 0\,{\scriptsize(0.93)} \\
+MLP probe & 91\,{\scriptsize(1.00)} & 90\,{\scriptsize(1.00)} & 87\,{\scriptsize(1.00)} & 83\,{\scriptsize(1.00)} & 0\,{\scriptsize(0.81)} & 0\,{\scriptsize(0.93)} & 0\,{\scriptsize(0.41)} & 0\,{\scriptsize(0.94)} \\
+ARETE (v1 geometry) & 93\,{\scriptsize(0.99)} & 93\,{\scriptsize(0.99)} & 94\,{\scriptsize(0.99)} & 88\,{\scriptsize(0.99)} & 0\,{\scriptsize(0.40)} & 3\,{\scriptsize(0.71)} & 0\,{\scriptsize(0.47)} & 0\,{\scriptsize(0.93)} \\
+Probe, last token & 94\,{\scriptsize(1.00)} & 91\,{\scriptsize(1.00)} & 90\,{\scriptsize(1.00)} & 87\,{\scriptsize(1.00)} & 0\,{\scriptsize(0.86)} & 15\,{\scriptsize(0.89)} & 0\,{\scriptsize(0.45)} & 0\,{\scriptsize(0.95)} \\
+Probe, user tokens (mean) & 96\,{\scriptsize(1.00)} & 88\,{\scriptsize(1.00)} & 83\,{\scriptsize(1.00)} & 93\,{\scriptsize(1.00)} & 5\,{\scriptsize(0.99)} & 17\,{\scriptsize(0.98)} & 0\,{\scriptsize(0.53)} & 0\,{\scriptsize(0.72)} \\
+Multi-view union & 97\,{\scriptsize(1.00)} & 93\,{\scriptsize(0.99)} & 92\,{\scriptsize(0.99)} & 88\,{\scriptsize(1.00)} & 0\,{\scriptsize(0.83)} & 12\,{\scriptsize(0.89)} & 1\,{\scriptsize(0.54)} & 5\,{\scriptsize(0.94)} \\
+\bottomrule
+\end{tabular}

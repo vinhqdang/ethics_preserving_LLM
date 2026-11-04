@@ -230,3 +230,10 @@ __marimo__/
 
 # Activation caches (large, regenerable)
 cache_v2/
+
+# Raw model generations (contain harmful text; regenerable)
+results_v2/gen_*_full.json
+results_v2/gen_mv_*[!d].json
+results_v2/gen_adaptive_*[!d].json
+results_v2/judge_cache.json
+results_v2/DONE*
