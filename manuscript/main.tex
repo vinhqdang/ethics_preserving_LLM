@@ -23,7 +23,7 @@
 \maketitle
 
 \begin{abstract}
-Activation-gated defenses read a model's residual stream and steer towards refusal only when a probe fires. Their thresholds are set on jailbreak framings known at development time. We test six such gates on real harmful and benign prompts in thirteen framings, nine of them withheld from design. On withheld framings, recall at a 1\% false-positive budget often falls to 0--17\%. Yet a probe over the user's tokens still ranks harmful above benign prompts with AUROC 0.95--1.00 whenever the model can parse the framing, and re-thresholding per framing would recover most of the loss. The failure is largely one of calibration. We propose a recalibration that needs no labels from the deployment stream: cluster prompts by framing, standardise the probe score robustly within each cluster, and keep the original threshold as a floor. The method is useful but fragile. With enough clusters, a post-hoc choice, recall on most withheld framings rises to 83--94\% on two models at 1.3--1.6\% mean false positives, and judged attack success falls, for example from 45\% to 6\% on code-completion framings (Qwen2.5-1.5B). The gains do not carry over where the steering itself is ineffective (fiction on Phi-3.5-mini), and framings used almost only for attacks are not helped.
+Activation-gated defenses read a model's residual stream and steer towards refusal only when a probe fires. Their thresholds are set on jailbreak framings known at development time. We test six such gates on real harmful and benign prompts in thirteen framings, nine of them withheld from design. On withheld framings, recall at a 1\% false-positive budget often falls to 0--17\%. Yet a probe over the user's tokens still ranks harmful above benign prompts with AUROC 0.95--1.00 whenever the model can parse the framing, and re-thresholding per framing would recover most of the loss. The failure is largely one of calibration. A location-scale model explains it, shows that no label-free correction is safe without a bound on the harmful share of each framing, and predicts how recalibration degrades as that share grows; its predictions match measured firing rates to about one percentage point of recall. We propose a recalibration that needs no labels from the deployment stream: cluster prompts by framing, standardise the probe score robustly within each cluster, and keep the original threshold as a floor. The method is useful but fragile. With enough clusters, a post-hoc choice, recall on most withheld framings rises to 83--94\% on two models at 1.3--1.6\% mean false positives, and judged attack success falls, for example from 45\% to 6\% on code-completion framings (Qwen2.5-1.5B). The gains do not carry over where the steering itself is ineffective (fiction on Phi-3.5-mini), and framings used almost only for attacks are not helped.
 \end{abstract}
 
 \section{Introduction}
@@ -41,7 +41,7 @@ The third finding is a remedy and a map of its limits. Deployed gates see a stre
 Concretely, we contribute:
 \begin{itemize}
 \item a held-out-framing evaluation of activation gates on real corpora, with leave-one-framing-out selection on validation data and five framings pre-registered after the main study;
-\item evidence that gate failure on withheld framings is mostly a calibration shift, and a negative result for framing-subspace projection;
+\item evidence that gate failure on withheld framings is mostly a calibration shift, a location-scale model that explains it, an impossibility result for label-free recalibration, and a negative result for framing-subspace projection;
 \item a label-free, cluster-wise recalibration with a fixed-threshold floor, evaluated without transduction at detection and generation level;
 \item a characterisation of its failure modes: cluster resolution, framings used mainly for attacks, harmful prevalence, and framings the model cannot parse.
 \end{itemize}
@@ -114,10 +114,46 @@ ARETE assumes that framing occupies a low-dimensional subspace that can be remov
 \paragraph{Where to read.}
 Readout position matters more than projection. In LOFO, the final-token probe misses prefix injection (1\%), whose injected instruction follows the request and changes the final state. The user-mean probe catches 60\% of it but is weaker on personas. A union of three readouts, each calibrated at a third of the budget, raises LOFO recall from 54\% to 69\% at 1.3\% FPR, and on the test split it helps seen framings slightly (Table~\ref{tab:detection}). It does not help withheld framings, because each readout suffers the same shift.
 
+\section{A Model of the Shift}
+\label{sec:theory}
+
+The diagnosis suggests a simple model, which we state so that its consequences can be checked. Let $s=a_f+b_f\,\varepsilon$ be the probe score of a prompt in framing $f$, where $\varepsilon\sim F_y$ depends only on the label $y$, $F_1$ stochastically dominates $F_0$, and $(a_f,b_f)$, $b_f>0$, are a location and scale set by the framing. The framing moves and stretches both classes together.
+
+\paragraph{Proposition 1 (ranking is invariant, thresholds are not).}
+Within a framing, AUROC does not depend on $(a_f,b_f)$, because the map $\varepsilon\mapsto a_f+b_f\varepsilon$ is increasing. A fixed threshold $\tau$ yields $\mathrm{TPR}_f=1-F_1((\tau-a_f)/b_f)$ and $\mathrm{FPR}_f=1-F_0((\tau-a_f)/b_f)$. The ROC curve is the same for every framing, and the framing only slides the operating point along it. A downward shift of $a_f$ therefore lowers recall and false positives together, which is the pattern in Table~\ref{tab:detection}: benign FPR on withheld framings falls to nearly zero at the same time as recall.
+
+\paragraph{Proposition 2 (no label-free rule is safe for every prevalence).}
+Let $F_0=\mathcal N(0,1)$ and $F_1=\mathcal N(d,1)$. A framing that is entirely benign at location $a+d$ and one that is entirely harmful at location $a$ produce the same unlabeled score distribution, $\mathcal N(a+d,1)$. Any rule that uses only unlabeled scores acts identically on both, so it fires on all of one population or on none of the other. A label-free recalibration must therefore assume a bound on the harmful share $\pi_f$ of each framing. This is the assumption stated in Section~\ref{sec:method}, now with a precise role: it is the price of identifiability, and no choice of statistic removes it.
+
+\paragraph{Proposition 3 (what the robust statistics give up).}
+Suppose a framing is observed as the mixture $(1-\pi)F_0+\pi F_1$, with $F_0,F_1$ unit-variance Gaussians separated by $d$. Let $m(\pi,d)$ be the median and $\sigma(\pi,d)=1.4826\,\mathrm{MAD}$ of the mixture, each the root of a monotone equation. The rule that fires when $(s-m)/\sigma>z^\star$ has
+\begin{align*}
+\mathrm{FPR}&=1-\Phi\bigl(m+z^\star\sigma\bigr),\\
+\mathrm{TPR}&=1-\Phi\bigl(m+z^\star\sigma-d\bigr).
+\end{align*}
+At $\pi=0$ this gives $m=0$, $\sigma=1$, so $z^\star$ attains the intended false-positive rate. As $\pi$ grows, harmful prompts pull $m$ upward and inflate $\sigma$, which raises the effective threshold. At $\pi=1/2$ the median sits between the modes, and for $d\ge2$ and $z^\star=2.52$ the threshold lies above the harmful mode, so recall is below $0.3\%$ (Table~\ref{tab:breakdown}). The estimator degrades smoothly with $\pi$, and a stronger probe (larger $d$) tolerates more contamination: at $d=4$ recall is 90\% at $\pi=0.05$ and 13\% at $\pi=0.30$.
+
+\begin{table}[t]
+\centering
+\input{tables/breakdown.tex}
+\caption{Recall (\%) of the oracle-grouped robust-$z$ rule under the Gaussian model of Proposition~3, as a function of separation $d$ and harmful prevalence $\pi$, at $z^\star=2.52$ (the value fitted on Qwen2.5-1.5B).}
+\label{tab:breakdown}
+\end{table}
+
+\paragraph{Checking the predictions.}
+We test Proposition~3 without the Gaussian assumption. For every framing and traffic mix, we build the mixture of the empirical benign and harmful test scores at the scenario's prevalence, compute its median and MAD, and predict the FPR and TPR of the rule that standardises by true framing (the oracle grouping, which removes clustering error). We compare these predictions with the window measurements of Section~\ref{sec:results}, over all thirteen framings and both mixes. Predictions and measurements agree closely (Table~\ref{tab:theorycheck}). The model also predicts the collapse of persona, refusal suppression, prefix injection and payload splitting at $\pi=0.5$ to 0\% recall, exactly as measured. This check isolates the robust-statistics step, and it reuses the test score distributions, so it shows that contamination explains the failure and not that the method generalises. Generalisation is the subject of Section~\ref{sec:results}.
+
+\begin{table}[t]
+\centering
+\input{tables/theory_check.tex}
+\caption{Predicted versus measured firing of the oracle-grouped robust-$z$ rule, over 13 framings and 2 traffic mixes (26 points per model). Correlation, and mean absolute error in percentage points.}
+\label{tab:theorycheck}
+\end{table}
+
 \section{Cluster-Wise Robust Recalibration}
 \label{sec:method}
 
-The diagnosis suggests treating each framing as its own calibration problem. At deployment the framing of a new prompt is unknown and no labels are available. Two facts help. Prompts that share a framing share an activation signature, so they cluster. And when a framing is used mostly for benign purposes, the bulk of its score distribution describes benign prompts.
+The diagnosis and the model of Section~\ref{sec:theory} suggest treating each framing as its own calibration problem. At deployment the framing of a new prompt is unknown and no labels are available. Two facts help. Prompts that share a framing share an activation signature, so they cluster. And when a framing is used mostly for benign purposes, the bulk of its score distribution describes benign prompts, which by Proposition~2 is an assumption no label-free method can drop.
 
 \begin{algorithm}[t]
 \caption{Cluster-wise robust recalibration}
