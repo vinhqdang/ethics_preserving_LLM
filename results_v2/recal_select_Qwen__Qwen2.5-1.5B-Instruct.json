@@ -1,0 +1,56 @@
+{
+ "last|clusterL7": {
+  "shared_tpr": 0.5083333333333333,
+  "adaptive_tpr": 0.35833333333333334,
+  "adaptive_fpr_held": 0.005333333333333333,
+  "adaptive_fpr_all": 0.005555555555555556
+ },
+ "last|clusterL14": {
+  "shared_tpr": 0.5083333333333333,
+  "adaptive_tpr": 0.37499999999999994,
+  "adaptive_fpr_held": 0.005333333333333333,
+  "adaptive_fpr_all": 0.00988888888888889
+ },
+ "last|clusterL21": {
+  "shared_tpr": 0.5083333333333333,
+  "adaptive_tpr": 0.375,
+  "adaptive_fpr_held": 0.006666666666666665,
+  "adaptive_fpr_all": 0.009555555555555555
+ },
+ "tinst|clusterL7": {
+  "shared_tpr": 0.5083333333333333,
+  "adaptive_tpr": 0.31666666666666665,
+  "adaptive_fpr_held": 0.008,
+  "adaptive_fpr_all": 0.007
+ },
+ "tinst|clusterL14": {
+  "shared_tpr": 0.5083333333333333,
+  "adaptive_tpr": 0.375,
+  "adaptive_fpr_held": 0.009333333333333334,
+  "adaptive_fpr_all": 0.011777777777777778
+ },
+ "tinst|clusterL21": {
+  "shared_tpr": 0.5083333333333333,
+  "adaptive_tpr": 0.3916666666666666,
+  "adaptive_fpr_held": 0.00977777777777778,
+  "adaptive_fpr_all": 0.008777777777777778
+ },
+ "mean|clusterL7": {
+  "shared_tpr": 0.375,
+  "adaptive_tpr": 0.8833333333333333,
+  "adaptive_fpr_held": 0.011111111111111112,
+  "adaptive_fpr_all": 0.009333333333333334
+ },
+ "mean|clusterL14": {
+  "shared_tpr": 0.375,
+  "adaptive_tpr": 0.9083333333333333,
+  "adaptive_fpr_held": 0.012000000000000002,
+  "adaptive_fpr_all": 0.01077777777777778
+ },
+ "mean|clusterL21": {
+  "shared_tpr": 0.375,
+  "adaptive_tpr": 0.8583333333333333,
+  "adaptive_fpr_held": 0.011999999999999999,
+  "adaptive_fpr_all": 0.008555555555555556
+ }
+}
