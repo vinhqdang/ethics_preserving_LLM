@@ -1,183 +1,235 @@
-\documentclass[11pt,twocolumn,a4paper]{article}
-\usepackage[utf8]{inputenc}
-\usepackage[top=0.95in,bottom=0.95in,left=0.75in,right=0.75in,columnsep=0.28in]{geometry}
+\documentclass[11pt]{article}
+\usepackage[review]{acl}
 \usepackage{times}
 \usepackage{latexsym}
-\usepackage{amsmath,amssymb,amsfonts}
-\usepackage{booktabs}
-\usepackage{graphicx}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
 \usepackage{microtype}
-\usepackage[numbers,sort&compress]{natbib}
-\usepackage{hyperref}
-\usepackage{url}
-\usepackage{xcolor}
+\usepackage{inconsolata}
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
 \usepackage{multirow}
 \usepackage{enumitem}
 \usepackage{algorithm}
 \usepackage{algpseudocode}
 \setlist{nosep,leftmargin=*}
 
-\title{\textbf{The Gate Knows, the Threshold Doesn't:\\Label-Free Recalibration of Activation-Gated Jailbreak Defenses\\Under Unseen Framings}}
+\title{The Gate Knows, the Threshold Doesn't:\\Recalibrating Activation-Gated Jailbreak Defenses Under Unseen Framings}
+
 \author{Anonymous submission}
-\date{}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-Activation-gated defenses read a language model's residual stream, decide whether a prompt is harmful, and only then intervene, for example by steering towards refusal. They are attractive because they are cheap and leave benign traffic untouched, but they are calibrated on the jailbreak framings seen during development. We evaluate five such gates on real harmful and benign corpora wrapped in eight framing families, four of which are held out entirely. On unseen framings recall collapses: at a 1\% benign false-positive budget, every gate detects at most 17\% of harmful fiction or indirect-injection prompts, and the undefended attack success rate of 89\% on fiction is left unchanged. The information has not disappeared. A probe that reads the mean of the user's tokens still ranks harmful above benign prompts with AUROC 0.98--0.99 on these framings, and re-thresholding it on the new framing would recover 79--81\% recall. The failure is a calibration shift, not a representation failure. We turn this diagnosis into a remedy that needs no labels: cluster the incoming prompt stream by framing, standardise the gate score robustly within each cluster, and fix a single threshold on validation streams. Selected by leave-one-framing-out on validation data and evaluated once on the test split, the method lifts recall on unseen fiction prompts from 7\% to 87\% and on indirect injection from 17\% to 65\% at a 5\% harmful prevalence, with benign false positives near the budget on these framings. At generation level, it cuts the judged attack success rate of fiction prompts from 89\% to 34\% and raises benign over-refusal by less than one point. We also report where it fails: when harmful prompts make up a fifth or more of the traffic, when the target model cannot parse the framing, and when a framing cluster is pure noise.
+Activation-gated defenses read a model's residual stream and intervene, for example by steering towards refusal, only when a probe fires. Their thresholds are set on jailbreak framings known at development time. We test six such gates on real harmful and benign prompts in thirteen framings, nine of which are withheld from all design decisions. On several withheld framings recall at a 1\% false-positive budget falls to between 0\% and 17\%. Yet a probe over the user's tokens still ranks harmful above benign prompts with AUROC 0.95--0.99 on every withheld framing the model can parse, and re-thresholding it per framing would recover most of the loss. The failure is mostly one of calibration. We propose a recalibration that uses no labels from the deployment stream: cluster incoming prompts by framing, standardise the probe score robustly within each cluster, and combine the result with the original threshold as a floor. The method is useful but fragile. As pre-registered it under-segments the traffic and helps only some framings. With more clusters (a post-hoc change) and realistic traffic it lowers judged attack success from 89\% to 37\% on fiction, from 45\% to 6\% on code-completion and from 15\% to 4\% on academic framings, with an over-refusal cost below one point. It cannot help framings used almost only for attacks.
 \end{abstract}
 
 \section{Introduction}
 
-Safety training teaches a language model to refuse harmful requests, and jailbreaks teach it to forget. A request that is refused when asked plainly is often answered when it is wrapped in a persona, a story, a retrieved document, or an encoding \citep{wei2023jailbroken,shen2024dan,greshake2023indirect,li2023deepinception}. Because these wrappers change the surface of the prompt but not what is being asked, a natural line of defense looks beneath the surface. Residual-stream activations carry a linearly readable signal of harmfulness \citep{zou2023repe,arditi2024refusal,zhao2025harmfulness}, and several defenses read that signal to gate an intervention: conditional activation steering adds a refusal direction only when a condition vector fires \citep{lee2025cast}, and probe-based detectors flag a prompt before generation \citep{zhang2025jbshield,mckenzie2025highstakes}. Such gates are appealing in deployment. They cost one forward pass, they leave benign traffic alone, and their operating point can be set to a fixed false-positive budget.
+Safety training teaches a language model to refuse harmful requests. Jailbreaks undo it by changing how the request is framed: a persona, a story, a retrieved document, an encoding, or a request to write code \citep{wei2023jailbroken,shen2024dan,greshake2023indirect,li2023deepinception}. Because the framing changes the surface of a prompt but not what it asks for, a natural defense looks beneath the surface. Residual-stream activations carry a linearly readable harmfulness signal \citep{zou2023repe,zhao2025harmfulness}, and refusal itself is mediated by a single direction \citep{arditi2024refusal}. Several defenses therefore read activations to decide whether to intervene. Conditional activation steering adds a refusal direction only when a condition vector fires \citep{lee2025cast}, and probe-based detectors flag a prompt from its internal state \citep{zhang2025jbshield,mckenzie2025highstakes}. These gates are cheap, they leave benign traffic alone, and their operating point can be set to a fixed false-positive budget.
 
-This paper is about what happens to that operating point when the framing changes. A gate is trained and thresholded on the framings its developers anticipated. Attackers do not oblige. We therefore separate framing families into a \emph{seen} set used for training and calibration and an \emph{unseen} set that is never touched until the final test, and we evaluate on real prompts from HarmBench, AdvBench, JailbreakBench, XSTest and OR-Bench \citep{mazeika2024harmbench,zou2023gcg,chao2024jailbreakbench,rottger2024xstest,cui2025orbench}, with generations judged by a guard model \citep{qwen2025qwen3guard} rather than by refusal string matching.
+This paper asks what happens to that operating point when the framing changes. We separate framing families into \emph{seen} ones, used for training and calibration, and \emph{withheld} ones, and we evaluate on real prompts from five public benchmarks \citep{mazeika2024harmbench,zou2023gcg,chao2024jailbreakbench,rottger2024xstest,cui2025orbench}, with generations judged by a guard model \citep{qwen2025qwen3guard}.
 
-The first finding is a collapse. Every gate we test, including a geometric gate of our own design that explicitly tries to factor framing out of the representation, keeps more than 80\% recall on seen framings and drops to between 0\% and 17\% on fiction and indirect injection. At the level of generated text, none of them lowers the 89\% attack success rate of the fiction framing at all.
+The first finding is a collapse. Every gate we test detects at most 17\% of harmful prompts on withheld fiction and indirect-injection framings, and none of them changes the 89\% attack success rate of fiction prompts. This includes a geometric gate of our own design that explicitly tries to factor framing out of the representation.
 
-The second finding is that the collapse is not where one would expect. If the harmful signal were destroyed by the framing, no threshold could recover it. Instead, the area under the ROC curve barely moves: a probe reading the user's tokens separates harmful from benign fiction prompts with AUROC 0.99. What moves is the location of both score distributions. A threshold set on seen framings lands in the wrong place, and the same probe re-thresholded on the new framing detects 80\% of harmful fiction prompts. Concurrent work reaches compatible conclusions in related settings: linear jailbreak probes are poorly calibrated off-distribution \citep{kim2026linearly}, and distribution shift degrades threshold transfer before it degrades ranking \citep{luo2026measuring}. We confirm the pattern systematically across gates, readout positions and framings, and we show that the most principled representational fix we could build, projecting out a subspace of framing directions, does not repair it.
+The second finding concerns the cause. Ranking survives the shift. A probe that reads the mean of the user's tokens separates harmful from benign prompts with AUROC 0.95--1.00 on every withheld framing the model can parse. On the four framings the shared threshold misses worst, re-thresholding it on the new framing recovers 57--81\% recall. What moves is the location of both score distributions. Concurrent work reports compatible observations: linear jailbreak probes are poorly calibrated off-distribution \citep{kim2026linearly}, and shift degrades threshold transfer before ranking \citep{luo2026measuring}. We confirm the pattern across gates, readout positions and framings. We also show that projecting out a subspace of framing directions, the most direct representational fix we could build, does not repair it.
 
-The third contribution is a remedy that targets the calibration directly and requires no labels. Deployed gates see a stream of mostly benign prompts. We cluster that stream by framing features, standardise the gate score inside each cluster with median and median absolute deviation, which are insensitive to a small fraction of harmful prompts \citep{rousseeuw1993mad,leys2013mad}, and apply one threshold that is fixed on validation streams. The idea of recalibrating subpopulations without labels has antecedents in general machine learning \citep{ziegler2019unsupervised,hebertjohnson2018multicalibration}; what we contribute is its adaptation to activation-gated safety, the choice of features to cluster on, a selection protocol that never looks at the unseen framings, and an honest account of the regimes in which it breaks.
+The third finding is a remedy and a map of its limits. Deployed gates see a stream of mostly benign prompts. We cluster the stream by framing, standardise the probe score inside each cluster with median and median absolute deviation, which tolerate a minority of harmful prompts \citep{rousseeuw1993mad,leys2013mad}, and keep the original threshold as a floor. Unsupervised recalibration of subpopulations has antecedents in general machine learning \citep{ziegler2019unsupervised}. Our contribution is to adapt it to activation-gated safety and to test it under a protocol that withholds framings from design. We then report plainly where it works and where it does not.
 
-In summary, we make four contributions:
+Concretely, we contribute:
 \begin{itemize}
-\item A held-out-framing benchmark for activation-gated defenses on real corpora, with leave-one-framing-out model selection and a single evaluation on the test split.
-\item Evidence that gate failure under unseen framings is a calibration shift, including a negative result for framing-subspace projection.
-\item A label-free, framing-adaptive recalibration that restores most of the recall an oracle threshold would give, at detection and at generation level.
-\item A characterisation of its limits: harmful prevalence, framings the model cannot parse, and adaptive attackers.
+\item a held-out-framing evaluation of activation gates on real corpora, with leave-one-framing-out selection on validation data and five framings pre-registered after the main study;
+\item evidence that gate failure on withheld framings is mostly a calibration shift, and a negative result for framing-subspace projection;
+\item a label-free, cluster-wise recalibration with a fixed-threshold floor, evaluated without transduction at detection and generation level;
+\item a characterisation of its failure modes: cluster resolution, framings used mainly for attacks, harmful prevalence, and framings the model cannot parse.
 \end{itemize}
 
 \section{Related Work}
 
 \paragraph{Jailbreak framings.}
-Jailbreaks range from optimised adversarial suffixes \citep{zou2023gcg,liu2024autodan} and iterative attacker models \citep{chao2025pair,mehrotra2024tap} to hand-written templates such as role-play personas \citep{shen2024dan}, nested fiction \citep{li2023deepinception}, encodings and ciphers \citep{wei2023jailbroken,yuan2024cipherchat}, many-shot demonstrations \citep{anil2024manyshot}, and instructions planted in retrieved content \citep{greshake2023indirect}. \citet{wei2023jailbroken} attribute their success to competing objectives and mismatched generalisation; the second mechanism is exactly what a framing held out from training probes.
+Attacks range from optimised suffixes \citep{zou2023gcg,liu2024autodan} and attacker models \citep{chao2025pair,mehrotra2024tap} to hand-written templates: personas \citep{shen2024dan}, nested fiction \citep{li2023deepinception}, encodings and ciphers \citep{wei2023jailbroken,yuan2024cipherchat}, many-shot demonstrations \citep{anil2024manyshot}, and instructions planted in retrieved content \citep{greshake2023indirect}. \citet{wei2023jailbroken} attribute their success partly to mismatched generalisation, which is what a withheld framing probes.
 
 \paragraph{Representation-level defenses.}
-Refusal in chat models is mediated by a low-dimensional direction \citep{arditi2024refusal}, and harmfulness and refusal are encoded separately and at different token positions \citep{zhao2025harmfulness}. Representation engineering reads and edits such directions \citep{zou2023repe}; circuit breakers reroute harmful representations during training \citep{zou2024circuitbreakers}; latent adversarial training hardens them \citep{sheshadri2024lat}. Closest to our setting are inference-time gates: CAST steers conditionally on a learned condition vector \citep{lee2025cast}, and probe- or gradient-based detectors flag prompts before decoding \citep{zhang2025jbshield,hu2024gradientcuff,xie2024gradsafe,mei2026hiddenguard}. Several recent studies question how far these signals generalise. Probes for high-stakes interactions keep high AUROC out of distribution while recall at a low false-positive rate is modest \citep{mckenzie2025highstakes}; final-token probes miss jailbreaks whose evidence sits in earlier user tokens \citep{doda2026beforelast}; linear jailbreak probes conflate benign register with intent and their headline accuracy depends on the threshold \citep{kim2026linearly}; and internal harmfulness scores can even anti-rank successful jailbreaks \citep{luo2026measuring}. Adaptive attacks that optimise against the probe itself can drive recall to zero \citep{bailey2026obfuscated}. We study a complementary, non-adaptive failure, natural framing shift, and propose a remedy for it.
+Harmfulness and refusal are encoded separately, with harmfulness concentrated at the instruction tokens rather than at the final position \citep{zhao2025harmfulness}. Representation engineering reads and edits such directions \citep{zou2023repe}; circuit breakers reroute harmful representations during training \citep{zou2024circuitbreakers}; latent adversarial training hardens them \citep{sheshadri2024lat}. Inference-time gates include conditional steering \citep{lee2025cast} and detectors that flag prompts from internal signals \citep{zhang2025jbshield,hu2024gradientcuff,xie2024gradsafe}, or redact during generation \citep{mei2026hiddenguard}. FrameShield likewise treats framing as a nuisance to be disentangled from the goal in activation space \citep{farzam2026hiding}. Several studies question how far probe signals generalise. Probes for high-stakes interactions keep high AUROC out of distribution while recall at low false-positive rates is modest \citep{mckenzie2025highstakes}. Final-token probes miss jailbreaks whose evidence sits in earlier user tokens \citep{doda2026beforelast}. Linear jailbreak probes conflate benign register with intent, and their headline accuracy depends on the threshold \citep{kim2026linearly}. Internal harmfulness scores can even anti-rank successful jailbreaks \citep{luo2026measuring}. In contrast, \citet{schwarz2026entanglement} find that refitting thresholds does not help on topic-matched pairs, where the discriminative information is absent. Adaptive attacks that optimise against the probe can drive recall to zero \citep{bailey2026obfuscated}. We study the complementary, non-adaptive failure of natural framing shift.
 
 \paragraph{Guard models and judges.}
-Classifier guards such as Llama Guard, WildGuard, ShieldGemma, Granite Guardian and Qwen3Guard moderate inputs and outputs \citep{inan2023llamaguard,han2024wildguard,zeng2024shieldgemma,padhi2025graniteguardian,qwen2025qwen3guard}, and constitutional classifiers are trained against universal jailbreaks \citep{sharma2025constitutional}. We use a guard model only as an evaluation judge, since refusal-string matching mistakes harmless non-compliance for a successful attack \citep{souly2024strongreject}.
+Classifier guards moderate inputs and outputs \citep{inan2023llamaguard,han2024wildguard,zeng2024shieldgemma,padhi2025graniteguardian,qwen2025qwen3guard}, and constitutional classifiers are trained against universal jailbreaks \citep{sharma2025constitutional}. We use a guard only as an evaluation judge, because refusal-string matching counts harmless non-compliance as a successful attack \citep{souly2024strongreject}.
 
 \paragraph{Calibration under shift.}
-Classical label-shift corrections reweight or re-estimate priors from unlabeled target data \citep{saerens2002adjusting,lipton2018bbse,alexandari2020labelshift}; test-time adaptation updates normalisation statistics on the fly \citep{wang2021tent}; conformal methods restore coverage under covariate or label shift given weights or labels \citep{tibshirani2019conformalshift,podkopaev2021labelshiftconformal}. Unsupervised recalibration adjusts a classifier's outputs per subpopulation without labels \citep{ziegler2019unsupervised}, and multicalibration asks for calibration on every identifiable subgroup \citep{hebertjohnson2018multicalibration}. For jailbreak detectors specifically, \citet{piet2025jailbreaksovertime} adapt text classifiers to drift by self-training, \citet{azov2026sallie} find that re-thresholding often suffices when target labels are available, and \citet{kim2026linearly} combine register erasure with distribution-free calibration on labelled benign data. Our method differs in using no labels from the shifted framing and in operating per framing cluster of an activation gate.
+Label-shift corrections re-estimate class priors from unlabeled target data \citep{saerens2002adjusting,lipton2018bbse,alexandari2020labelshift}. Test-time adaptation adjusts normalisation layers by entropy minimisation \citep{wang2021tent}. Conformal methods restore coverage under shift given weights or labels \citep{tibshirani2019conformalshift,podkopaev2021labelshiftconformal}. Unsupervised recalibration adjusts outputs per subpopulation without labels \citep{ziegler2019unsupervised}; multicalibration asks for calibration on every identifiable subgroup, using labels \citep{hebertjohnson2018multicalibration}. For jailbreak detectors, \citet{piet2025jailbreaksovertime} adapt text classifiers to drift by self-training, \citet{azov2026sallie} find that re-thresholding often suffices when target labels exist, and \citet{kim2026linearly} combine register erasure with distribution-free calibration on labelled benign data. Our method uses no labels from the shifted framing or the deployment stream, and it operates per framing cluster of an activation gate.
 
 \section{Setup}
 \label{sec:setup}
 
 \paragraph{Prompts.}
-Harmful behaviours come from JailbreakBench, the standard text behaviours of HarmBench, and AdvBench; benign prompts come from the matched benign split of JailbreakBench, the safe prompts of XSTest, and 400 prompts of OR-Bench-Hard, which are designed to look harmful. After de-duplication the corpus has 1{,}550 prompts. We split it 50/20/30 into train, validation and test \emph{by behaviour}, stratified by source, so no wrapped version of a test request is ever seen in training. The test split holds 241 harmful and 225 benign requests.
+Harmful behaviours come from JailbreakBench, the standard text behaviours of HarmBench, and AdvBench; benign prompts come from the benign split of JailbreakBench, the safe prompts of XSTest, and 400 prompts of OR-Bench-Hard, which are designed to look harmful. After de-duplication there are 1{,}550 prompts. We split them 50/20/30 into train, validation and test \emph{by behaviour}, stratified by source, so that no wrapped version of a test request is seen in training. The test split holds 241 harmful and 225 benign requests.
 
 \paragraph{Framings.}
-Each request is wrapped by eight framing families that keep its text verbatim. Four are \emph{seen}: the plain request, a persona template (AIM, DAN, ``grandma''), refusal suppression, and prefix injection. Four are \emph{unseen} and are used only in the final test: a fiction or screenplay frame, an indirect injection disguised as a retrieved document or forwarded e-mail, base64 encoding, and leetspeak. We additionally optimise GCG suffixes \citep{zou2023gcg} against the undefended model for 20 test behaviours (80 steps, 128 candidates per step, 20-token suffixes).
+Each request is wrapped in a framing that keeps its text verbatim. Four framings are \emph{seen}: the plain request, a persona (AIM, DAN, ``grandma''), refusal suppression, and prefix injection. Four were \emph{withheld} from the start: fiction or screenplay, indirect injection disguised as a retrieved document or e-mail, base64, and leetspeak. After the main study we wrote and committed five \emph{fresh} framings before generating any output on them: a past-tense historical frame, an academic or IRB frame, code completion, translate-then-answer, and payload splitting. Every family uses one to three fixed templates. We also optimise GCG suffixes \citep{zou2023gcg} against the undefended model for 20 test behaviours (Appendix~\ref{app:extra}).
 
 \paragraph{Model and gates.}
-The target is Qwen2.5-1.5B-Instruct \citep{qwen2024qwen25} without a system prompt. All gates read layer 14 of 28 and, when they fire, add the same steering vector $\alpha\,\hat r$ to the residual stream at every position, where $\hat r$ is the normalised difference between mean harmful and mean benign activations of plain training requests and $\alpha$ is 0.4 times the mean activation norm. Differences between gates therefore come from the gating decision alone. We compare (i) a CAST-style condition vector \citep{lee2025cast}; (ii) a logistic-regression probe and (iii) a two-layer MLP probe on the final-token activation; (iv) ARETE, a geometric gate of our own that maps activations onto separate intent and context hyperspheres, learns harm caps on the intent sphere, and steers in the orthogonal complement of a framing subspace estimated from wrapper displacements (Appendix~\ref{app:arete}); and (v) probes reading other token positions, introduced in Section~\ref{sec:diagnosis}. An always-on steer bounds what steering can achieve. Every gate is trained on seen framings of the training split and thresholded so that its false-positive rate on benign validation prompts of seen framings is 1\%. This shared, held-out-quantile threshold is the distribution-free calibration of \citet{kim2026linearly}.
+The target is Qwen2.5-1.5B-Instruct \citep{qwen2024qwen25} without a system prompt. All gates read layer 14 of 28. When a gate fires, it adds the same vector $\alpha\hat r$ to the residual stream at every position. Here $\hat r$ is the normalised difference between mean harmful and mean benign activations of plain training requests, and $\alpha$ is 0.4 times the mean activation norm. Gates therefore differ only in their decision. We compare six gates: (i)~a CAST-style condition vector \citep{lee2025cast}; (ii)~an MLP probe on the final token; (iii)~ARETE, a geometric gate of our own that maps activations onto intent and context hyperspheres and steers orthogonally to a framing subspace (Appendix~\ref{app:arete}); and logistic-regression probes on (iv)~the final token, (v)~the mean of the user's tokens, and (vi)~a union of three readouts (Section~\ref{sec:diagnosis}). Every gate is trained on seen framings of the training split. Its threshold is the 99th percentile of its score on benign validation prompts of seen framings, a held-out-quantile calibration in the spirit of \citet{kim2026linearly} but without their register erasure. We call it the \emph{shared} threshold.
 
-\paragraph{Protocol.}
-Every design decision in this paper (token position, layer, clustering features, thresholds) is made by \emph{leave-one-framing-out} (LOFO) on the validation split: each seen wrapper in turn is treated as unseen, the gate is trained and calibrated on the remaining seen framings, and recall is measured on the held-out one. The unseen families and the test split are used once, after the configuration is fixed.
+\paragraph{Protocol and its departures.}
+Readout position, clustering layer and clustering features were selected by leave-one-framing-out (LOFO) on the validation split: each seen wrapper in turn is treated as withheld, and recall is measured on it. Two departures need stating. First, the diagnostic analyses of Section~\ref{sec:diagnosis} used the test split before the remedy was designed, so the original withheld framings informed the idea, though not its configuration. This is why we pre-registered the fresh framings. Second, the layer was fixed at 14 for all gates and never selected; in LOFO the user-mean probe scored slightly higher at layers 21 and 7 (43\% and 41\% recall) than at layer 14 (38\%).
 
 \paragraph{Metrics.}
-Detection is reported as true-positive rate (TPR) on harmful prompts and false-positive rate (FPR) on benign prompts at the calibrated threshold, plus AUROC. For generations (greedy, 96 new tokens) we use Qwen3Guard-Gen-4B in response-moderation mode \citep{qwen2025qwen3guard}, given the \emph{unwrapped} request and the response: attack success rate (ASR) is the fraction of harmful requests whose response is judged \textsc{Unsafe}, and over-refusal is the fraction of benign requests whose response is judged a refusal. Refusal-string matching over-counts attacks: on base64-wrapped requests the model often decodes the payload incorrectly and answers a different, harmless question.
+Detection is reported as true-positive rate (TPR, which we call recall) on harmful prompts and false-positive rate (FPR) on benign prompts, plus AUROC. Responses are generated greedily for 96 new tokens and judged by Qwen3Guard-Gen-4B in response-moderation mode \citep{qwen2025qwen3guard}. The judge sees the \emph{unwrapped} request and the response. Attack success rate (ASR) is the fraction of harmful requests whose response is judged \textsc{Unsafe}. Over-refusal is the fraction of plain benign requests whose response is judged a refusal; on wrapped benign prompts the judge often labels confused non-compliance as refusal, so we do not report it there. For base64 the judge labels responses that merely echo or start decoding the payload as \textsc{Unsafe}, so we report detection only. With 96 tokens, ASR mostly measures the onset of compliance; Appendix~\ref{app:extra} repeats the key cells at 256 tokens.
 
-\section{Diagnosis: The Gate Knows, the Threshold Doesn't}
+\section{Diagnosis: Ranking Survives, the Threshold Moves}
 \label{sec:diagnosis}
 
 \begin{table*}[t]
 \centering
-\small
 \resizebox{\textwidth}{!}{\input{tables/detection.tex}}
-\caption{Detection on the test split at a 1\% benign FPR budget calibrated on seen framings: TPR (\%) on harmful prompts and AUROC in parentheses. All gates read layer 14 of Qwen2.5-1.5B-Instruct. Recall collapses on unseen framings even where AUROC stays high.}
+\caption{Detection on the test split at the shared threshold (1\% benign FPR on seen framings): recall (\%) and, in parentheses, AUROC. All gates read layer 14 of Qwen2.5-1.5B-Instruct.}
 \label{tab:detection}
 \end{table*}
 
-\paragraph{Recall collapses on unseen framings.}
-Table~\ref{tab:detection} shows that every gate detects 83--97\% of harmful prompts on seen framings at the 1\% budget, except CAST, whose single condition direction already fails on prefix injection. On unseen framings recall falls to between 0\% and 17\%. The benign FPR on these framings also falls to nearly zero, which is the first hint that the threshold, not the separation, has moved: the whole score distribution of a new framing shifts below the threshold. Our ARETE gate is no exception. Its fiction AUROC of 0.40 is worse than chance, so its learned intent geometry does not carry over to a narrative frame.
+\paragraph{Recall collapses on withheld framings.}
+Table~\ref{tab:detection} shows that the probes and ARETE detect 83--97\% of harmful prompts on seen framings at the shared threshold. CAST is weaker on wrapped seen framings, at 0--50\%. On withheld framings recall falls to 0--17\% for every gate. Benign FPR on those framings also falls to nearly zero, which already suggests a shift in location: the whole score distribution of a new framing moves below the threshold. ARETE's fiction AUROC is 0.40, worse than chance, so its learned intent geometry does not transfer to a narrative frame.
 
-\paragraph{Ranking survives; the threshold does not.}
 \begin{table}[t]
 \centering
-\small
 \resizebox{\columnwidth}{!}{\input{tables/oracle.tex}}
-\caption{Unseen framings, test split. \emph{Shared}: threshold calibrated on seen framings (1\% FPR). \emph{Oracle}: threshold re-calibrated to 1\% FPR on benign prompts of the same framing, which is unavailable in practice. Numbers are TPR (\%).}
+\caption{Withheld framings, test split. \emph{Shared}: threshold from seen framings. \emph{Oracle}: threshold re-set to 1\% FPR on benign prompts of the same framing (unavailable in practice). Recall in \%.}
 \label{tab:oracle}
 \end{table}
-If a framing erased the harmful signal, no threshold could recover it. Table~\ref{tab:oracle} tests this with an oracle that re-thresholds each probe on benign prompts of the unseen framing itself. For a probe reading the mean of the user's tokens, AUROC on fiction and indirect injection is 0.99 and 0.98, and the oracle threshold lifts recall from 5\% to 81\% and from 17\% to 79\%. The information is present; the calibration is wrong. Base64 is the exception that proves the rule: AUROC is near chance and no threshold helps, because a 1.5B model does not reliably decode the payload, so its representation of the request is not formed in the first place.
+
+\paragraph{The information is still there.}
+If a framing erased the harmful signal, no threshold could recover it. Table~\ref{tab:oracle} compares the shared threshold with an oracle that re-thresholds on benign prompts of the withheld framing itself. For the user-mean probe, AUROC on fiction and indirect injection is 0.99 and 0.98, and the oracle lifts recall from 5\% to 81\% and from 17\% to 79\%. The fresh framings, examined only after the method was fixed, show the same pattern (Table~\ref{tab:fresh}). AUROC ranges from 0.95 to 1.00, and the oracle lifts past-tense recall from 0.4\% to 57\% and payload-split recall from 0.4\% to 78\%. Base64 is the exception. AUROC is near chance and no threshold helps, because the 1.5B model does not reliably decode the payload, so no representation of the request forms. Leetspeak is similar at the user-mean readout (AUROC 0.72), and the model rarely complies with it at all.
+
+\begin{table}[t]
+\centering
+\resizebox{\columnwidth}{!}{\input{tables/fresh_oracle.tex}}
+\caption{Fresh pre-registered framings, user-mean probe, test split. Recall in \%.}
+\label{tab:fresh}
+\end{table}
 
 \paragraph{Projecting out framing does not help.}
-ARETE's premise is that framing occupies a low-dimensional subspace that can be removed. We test the premise directly in LOFO on the validation split, estimating the subspace from wrapper displacements of the remaining seen wrappers and projecting it out before training a linear probe. Removing 0, 4, 16 or 64 directions gives mean held-out recall of 54\%, 54\%, 54\% and 48\%. A subspace learned from two wrappers does not contain the shift induced by a third. Prefix injection is the clearest case, with recall near 1\% at every rank.
+ARETE assumes that framing occupies a low-dimensional subspace that can be removed. We test this in LOFO on validation data: we estimate the subspace from wrapper displacements of the remaining seen wrappers and project it out before training a linear probe. Removing 0, 4, 16 or 64 directions gives mean held-out recall of 54\%, 54\%, 54\% and 48\%. A subspace learned from two wrappers does not contain the shift induced by a third. Prefix injection is the clearest case, at about 1\% recall for every rank.
 
 \paragraph{Where to read.}
-Token position matters more than projection. In LOFO, a probe on the last template token misses prefix injection (1\%) because the injected instruction follows the request and changes the final state. A probe on the mean of the user's tokens catches 60\% of it but is weaker on personas. A probe on the last user token fails on prefix injection for the same positional reason. This is consistent with harmfulness being represented over the user's tokens rather than only at the decision point \citep{zhao2025harmfulness,doda2026beforelast}. A union of the three readouts, each calibrated at a third of the budget, raises LOFO recall from 54\% to 69\% at 1.3\% FPR, and on the test split it improves seen framings slightly (Table~\ref{tab:detection}). It does not fix unseen framings, because each of its readouts suffers the same threshold shift.
+Readout position matters more than projection. In LOFO, the final-token probe misses prefix injection (1\%), whose injected instruction follows the request and changes the final state. The user-mean probe catches 60\% of it but is weaker on personas. A union of three readouts, each calibrated at a third of the budget, raises LOFO recall from 54\% to 69\% at 1.3\% FPR, and on the test split it helps seen framings slightly (Table~\ref{tab:detection}). It does not help withheld framings, because each readout suffers the same shift.
 
-\section{Label-Free Framing-Adaptive Recalibration}
+\section{Cluster-Wise Robust Recalibration}
 \label{sec:method}
 
-The diagnosis suggests treating each framing as its own calibration problem. At deployment the framing of a new prompt is unknown and no labels are available, but two facts can be exploited. Prompts that share a framing share an activation signature that is easy to cluster. And real traffic is mostly benign, so within a cluster the bulk of the score distribution describes benign prompts.
+The diagnosis suggests treating each framing as its own calibration problem. At deployment the framing of a new prompt is unknown and no labels are available. Two facts help. Prompts that share a framing share an activation signature, so they cluster. And when a framing is used mostly for benign purposes, the bulk of its score distribution describes benign prompts.
 
 \begin{algorithm}[t]
-\caption{Framing-adaptive recalibration}
+\caption{Cluster-wise robust recalibration}
 \label{alg:recal}
 \begin{algorithmic}[1]
-\Require gate score $s(\cdot)$; framing features $\phi(\cdot)$; benign FPR budget $\epsilon$
-\State \textbf{Offline (validation):} simulate streams of seen framings; for each, run lines 2--4 and collect robust $z$ of benign prompts; set $z^\star$ to their $(1-\epsilon)$ quantile.
-\State \textbf{Online:} on a window of incoming prompts $\{x_i\}$, compute $\phi(x_i)$, reduce by PCA, run $k$-means with $k$ chosen by silhouette.
-\State For each cluster $c$: $m_c \gets \mathrm{median}\{s(x_i)\}$, $d_c \gets 1.4826\cdot\mathrm{MAD}\{s(x_i)\}$.
-\State Fire on $x$ in cluster $c$ iff $(s(x)-m_c)/d_c > z^\star$.
+\Require probe score $s$; framing features $\phi$; budget $\epsilon$; shared threshold $\tau_{\epsilon/2}$
+\State \textbf{Once, on validation:} simulate streams of seen framings, run lines 2--3, and set $z^\star$ to the $(1-\epsilon/2)$ quantile of benign robust $z$.
+\State \textbf{Window:} on unlabeled traffic, reduce $\phi$ by PCA and run $k$-means, $k\le k_{\max}$ chosen by silhouette.
+\State For each cluster $c$: $m_c\gets\mathrm{median}(s)$, $d_c\gets1.4826\,\mathrm{MAD}(s)$; freeze centroids and $(m_c,d_c)$.
+\State \textbf{New prompt} $x$, nearest centroid $c$: fire iff $s(x)>\tau_{\epsilon/2}$ or $(s(x)-m_c)/d_c>z^\star$.
 \end{algorithmic}
 \end{algorithm}
 
-Algorithm~\ref{alg:recal} formalises this. The gate score $s$ is the user-token mean probe; the clustering features $\phi$ are mean-pooled user-token activations, reduced to 32 principal components; $k$ ranges over $\{2,\dots,12\}$. Clusters with fewer than 30 prompts fall back to validation statistics. On the test traffic window silhouette chose $k{=}12$, the top of the range, so framings are split more finely than the eight families, which is harmless for a per-cluster threshold. The median and MAD tolerate contamination by a minority of harmful prompts, so a harmful prompt stands out against the benign bulk of its own framing rather than against the benign bulk of the training framings. The threshold $z^\star$ is calibrated on validation streams that pass through the same clustering, so it accounts for within-cluster dispersion. We also evaluate a \emph{hybrid} rule that fires if either the shared threshold or the adaptive threshold fires, each at half the budget. It is meant as a floor for regimes where the adaptive statistics are unreliable.
+Algorithm~\ref{alg:recal} gives the \emph{hybrid} rule. The score $s$ is the user-mean probe. The features $\phi$ are user-mean activations at layer 14, reduced to 32 principal components. Clusters with fewer than 30 prompts fall back to validation statistics. Inside a cluster the median and MAD describe its benign bulk, so a harmful prompt is compared with benign prompts of its own framing. Because $z^\star$ is set on validation streams that pass through the same clustering, it accounts for within-cluster dispersion. The \emph{adaptive} rule is the second disjunct alone, at the full budget. Validation labels are used once, to set $z^\star$ and $\tau$. No labels from the deployment stream or from new framings are used.
 
-All choices were made by LOFO on validation streams at 5\% harmful prevalence. The score readout was chosen from \{last token, last user token, user mean\} and the clustering layer from \{7, 14, 21\}. With the user-mean readout and clustering at layer 14, held-out recall rose from 38\% (shared threshold) to 91\% at 1.1--1.2\% FPR. The other readouts did not benefit, since their failure on held-out wrappers is not only a matter of location. This configuration was then fixed and run once on the test split.
+LOFO on validation streams at 5\% harmful prevalence selected the user-mean readout over the final-token and last-user-token readouts, and layer-14 clustering features over layers 7 and 21. Under that selection, held-out recall rose from 38\% with the shared threshold to 91\% with the adaptive rule, at 1.1\% FPR. The hybrid rule reached 83\% at 0.9\% FPR. We fixed $k_{\max}=12$ without selection, which turns out to matter.
 
 \section{Results}
 \label{sec:results}
 
+We evaluate without transduction. In each of 20 windows the test behaviours are split at random into halves A and B. Cluster statistics are estimated on traffic built from half A and applied to half B. We use two traffic mixes. \emph{Benign-rich} traffic gives every framing 5\% harmful prevalence. \emph{Realistic} traffic keeps 5\% for dual-use framings (plain, fiction, indirect, past tense, academic, code, translation) and uses 50\% for framings that are rarely used benignly (persona, refusal suppression, prefix injection, base64, leetspeak, payload split). Generation-level ASR is composed from judged responses. A fired prompt takes the label of its steered response, which equals the always-on response under greedy decoding, and an unfired prompt takes the label of its undefended response.
+
 \begin{table*}[t]
 \centering
-\small
-\resizebox{\textwidth}{!}{\input{tables/recal.tex}}
-\caption{Detection on the test split for unlabeled streams with harmful prevalence $\pi$ (20 random draws each; the stream contains all benign test prompts of every framing and harmful prompts subsampled to prevalence $\pi$). TPR (\%) per framing and benign FPR (\%) averaged over all eight framings. Same probe throughout; only the decision rule differs.}
-\label{tab:recal}
+\begin{minipage}{0.49\textwidth}\centering
+\resizebox{\textwidth}{!}{\input{tables/robust_prereg.tex}}\\[2pt]
+{\small (a) Pre-registered, $k_{\max}{=}12$, 20 windows}
+\end{minipage}\hfill
+\begin{minipage}{0.49\textwidth}\centering
+\resizebox{\textwidth}{!}{\input{tables/robust_k30.tex}}\\[2pt]
+{\small (b) Post hoc, $k_{\max}{=}30$, 10 windows}
+\end{minipage}
+\caption{Recall (\%) on harmful test prompts of half B, mean over windows; last row: benign FPR averaged over the 13 framings. Thirteen framings share each traffic window. \emph{Shared}: fixed threshold. \emph{Adaptive}: cluster-wise robust $z$ alone. \emph{Hybrid}: either fires (each at half the budget).}
+\label{tab:robust}
 \end{table*}
 
-\paragraph{Detection.}
-Table~\ref{tab:recal} shows that at 1--5\% prevalence adaptive recalibration lifts recall on unseen fiction prompts from 5--7\% to 85--87\% and on indirect injection from 17--20\% to 65--70\%, close to the oracle of Table~\ref{tab:oracle}. On these two framings the benign FPR stays at 0.6--1.0\%. The gains are not free. The mean FPR over all framings rises from 0.5\% to 1.6--1.8\%, mostly from the base64 cluster, where scores are near noise and standardisation amplifies it (4.9\% FPR), and from plain requests (about 3\%). Recall on plain requests also drops from 95--98\% to 80--88\%. The hybrid rule recovers plain-request recall (93--98\%) while keeping almost all of the unseen-framing gain. Leetspeak, on which even the oracle reaches only 17\%, is not helped.
+\paragraph{As pre-registered, the method under-segments.}
+Table~\ref{tab:robust}a reports the frozen configuration on all thirteen framings. In benign-rich traffic, payload-split recall rises from 0\% to 90\%, indirect injection from 16\% to 31\%, past tense from 0\% to 15\%, and academic from 40\% to 45\%. Fiction gains little, from 5\% to 19\%. When the stream contains only the eight original framings, the same configuration detects 82\% of fiction and 56\% of indirect prompts. With thirteen framings and at most twelve clusters, fiction shares a cluster with framings whose benign scores sit elsewhere, and its location is not corrected. With true framing labels as groups (Table~\ref{tab:ablation}) fiction recall is 76\%, so the loss comes from cluster resolution, not from the statistics.
+
+\paragraph{With enough clusters it works where traffic is mostly benign.}
+Raising $k_{\max}$ to 30 is a post-hoc change, motivated by the observation above, and we report it as such. In benign-rich traffic, adaptive recall then reaches 91\% on fiction, 92\% on indirect injection, 84\% on academic and 90\% on payload splitting, at 1.6\% mean FPR (Table~\ref{tab:robust}b). Recall rises steadily with $k_{\max}$: at 12, 20 and 30 it is 27\%, 70\% and 91\% on fiction. Past tense stays at 40\%, below its 57\% oracle. Table~\ref{tab:ablation} isolates the clustering. One global robust $z$ ($k{=}1$) does nothing. Grouping by true framing family helps, but less than data-driven clusters, which can also separate templates within a family.
+
+\begin{table}[t]
+\centering
+\resizebox{\columnwidth}{!}{\input{tables/ablation.tex}}
+\caption{Grouping ablation, benign-rich traffic, $k_{\max}{=}30$ (post hoc). Recall (\%); FPR averaged over 13 framings.}
+\label{tab:ablation}
+\end{table}
+
+\paragraph{It fails where a framing is mostly harmful, and the floor contains the damage.}
+Under realistic traffic the persona, refusal-suppression and prefix-injection clusters are half harmful. Their median then sits among harmful scores, and adaptive recall on them drops to 0--4\% (Table~\ref{tab:robust}). This is worse than the shared threshold, and prefix-injection ASR returns to the undefended 77\%. Payload splitting, an attack-only framing that the shared threshold also misses, is lost entirely. The hybrid rule keeps the shared threshold as a floor and recovers 55--82\% recall on seen attack-only framings, while keeping nearly all of the gain on dual-use framings.
+
+\begin{table}[t]
+\centering
+\resizebox{\columnwidth}{!}{\input{tables/generation_realistic_k30.tex}}
+\caption{Judged ASR (\%) on half B under realistic traffic, $k_{\max}{=}30$ (post hoc); mean and 95\% interval over 10 windows. Base64 omitted (judge artefact, Section~\ref{sec:setup}). Last row: over-refusal on plain benign requests.}
+\label{tab:generation}
+\end{table}
 
 \paragraph{Generation.}
-\begin{table*}[t]
-\centering
-\small
-\resizebox{\textwidth}{!}{\input{tables/generation.tex}}
-\caption{Generation-level results on the test split, judged by Qwen3Guard-Gen-4B. Columns 2--10: attack success rate (\%, response judged \textsc{Unsafe}); GCG uses 20 behaviours. Last column: over-refusal (\%) on plain benign requests. Gated rows average three seeds. For the adaptive rule, per-cluster statistics are estimated once from an unlabeled traffic window (all benign test prompts plus harmful prompts at 5\% prevalence) and then frozen and applied to every test prompt through its nearest cluster centroid. GCG prompts were not part of that window.}
-\label{tab:generation}
-\end{table*}
-Detection gains matter only if they change what the model says. Table~\ref{tab:generation} reports judged attack success when each gate controls the same refusal steer. The always-on steer bounds what steering can do: it lowers fiction ASR from 88.8\% to 28.6\% but refuses every plain benign request. The existing gates sit at the other extreme. On fiction and indirect injection they never fire, so their ASR equals the undefended model's (88.8\% and 12.4--12.9\%). With per-cluster statistics estimated once from a traffic window and frozen, the adaptive gate fires on 86\% of harmful fiction and 92\% of harmful indirect prompts, and on 0.9\% of benign prompts in those framings. This brings fiction ASR down to 34.4\%, within six points of the always-on bound, and indirect ASR down to 4.6\%. Over-refusal on plain benign requests rises by only 0.9 points, from 59.1\% to 60.0\%. The high base rate reflects how often the 1.5B model refuses the borderline prompts of XSTest and OR-Bench even without any defense. On seen framings the adaptive gate matches the best fixed-threshold gates, for example 12.0\% versus 12.9--13.7\% on prefix injection. Base64 is unaffected because the gate cannot see it (Section~\ref{sec:diagnosis}). Leetspeak never succeeds against this model in the first place.
+Table~\ref{tab:generation} reports judged ASR under realistic traffic. The hybrid rule lowers ASR on fiction from 89\% to 37\%, on code completion from 45\% to 6\%, on academic framing from 15\% to 4\%, and on indirect injection from 12\% to 6\%. The shared threshold leaves fiction and indirect injection unchanged. Translate-then-answer is already caught by the shared threshold (51\% to 3\%), and the hybrid rule keeps it there (5\%). Over-refusal on plain benign requests rises from 60.3\% to 60.6\%. The high base rate reflects how often the 1.5B model refuses the borderline prompts of XSTest and OR-Bench even undefended. An always-on steer, by contrast, refuses every plain benign request. The cost of the hybrid rule falls on prefix injection, where ASR rises from 9\% (shared) to 16\%, and on payload splitting, which stays at 95\%. Appendix~\ref{app:extra} gives the pre-registered configuration and a prevalence sweep. With harmful prompts at 20\% of every framing the adaptive statistics degrade, and at 35\% they fail.
 
-\paragraph{Prevalence.}
-The method assumes that harmful prompts are a minority of each framing cluster. Table~\ref{tab:recal} probes this assumption. At 10\% prevalence adaptive recall on fiction is still 78\%. At 20\% the median and MAD are visibly contaminated and recall on every framing drops, to 28\% on plain requests. At 35\% (not shown) adaptive recall is at most 5\% on every framing. The hybrid rule keeps plain-request recall at 95\% even at 20\% prevalence, because its shared half does not depend on traffic statistics. An attacker who can flood a framing cluster with harmful requests can therefore disable the adaptive half, but not the shared half.
+\section{Discussion}
 
-\section{Discussion and Limitations}
+Activation gates are usually reported by AUROC, and by that measure they generalise to new framings. Deployed gates operate at a threshold, and there they do not. Most of the gap is calibration, and it can be narrowed without new labels by letting the threshold follow the framing. This agrees with observations that probes keep their ranking but lose their operating point off-distribution \citep{mckenzie2025highstakes,kim2026linearly,azov2026sallie}. It also differs from settings where the information itself is missing \citep{schwarz2026entanglement}, which is what we see for base64 on a small model. Defenses that remove framing from the representation, as ARETE attempted, address a change in separability. Here the change was in location.
 
-\paragraph{What the results say.}
-Activation gates are usually evaluated by AUROC, and by that measure they generalise well to new framings. Deployed gates are judged at a threshold, and there they do not. The gap between the two is a calibration problem, and it can be addressed without new labels by letting the threshold follow the framing. This is consistent with recent observations that probes keep their ranking but lose their operating point off-distribution \citep{mckenzie2025highstakes,kim2026linearly,luo2026measuring,azov2026sallie}. It also suggests that defenses which try to remove framing from the representation, as ARETE did, are solving the wrong problem when the shift is in location rather than in separability.
-
-\paragraph{Limitations.}
-Our experiments use a single 1.5B-parameter target model. Planned experiments on a 7B model could not be run because GPU capacity was unavailable. Larger models parse encodings such as base64, which would likely turn that framing from a capability failure into a calibration failure. The framing families are template-level; adaptive optimisation against the gate itself \citep{bailey2026obfuscated} is out of scope, and an adaptive attacker can also target the clustering or flood a cluster, as the prevalence study shows. The judge is a model, and on wrapped benign prompts it often labels confused non-compliance as refusal, so we report over-refusal mainly for plain benign requests. Finally, our GCG evaluation uses 20 behaviours and is indicative only.
+The remedy's limits follow from its one assumption: each cluster is mostly benign. That holds for dual-use framings such as fiction, retrieved documents, academic or code requests, which are also the hardest to block wholesale. It fails for framings that exist mainly to attack, and those need a fixed floor or a template-level filter. The method also depends on cluster resolution. Over-segmenting is cheap, because small clusters fall back to validation statistics, whereas under-segmenting silently merges framings. We would set $k_{\max}$ well above the expected number of distinct templates.
 
 \section{Conclusion}
-Activation-gated jailbreak defenses fail on unseen framings not because the model stops representing harm, but because the gate's threshold stays where the developers put it. Recalibrating that threshold per framing cluster, using only the robust statistics of unlabeled traffic, recovers most of the lost recall at near-constant false-positive cost, with failure modes that we have mapped and that a simple hybrid rule partly contains.
+Activation-gated jailbreak defenses fail on withheld framings mainly because their threshold stays where it was calibrated, while the model still represents the harm. Recalibrating per framing cluster from unlabeled traffic, with the original threshold as a floor, recovers much of the lost protection for dual-use framings at almost no over-refusal cost. It cannot protect framings used mainly for attacks, and it depends on adequate cluster resolution.
+
+\section*{Limitations}
+We study one 1.5B-parameter model. Larger models parse encodings such as base64, which would likely turn that framing from a capability failure into a calibration failure. Each framing uses one to three fixed templates, which makes clustering easier than for paraphrased or attacker-generated framings. The best-performing configuration ($k_{\max}{=}30$) was chosen after seeing pre-registered results, and the original withheld framings informed the method's design. Only the fresh framings under the pre-registered configuration are fully untouched evidence. We did not test adaptive attackers who optimise against the gate \citep{bailey2026obfuscated}, camouflage prompts into benign clusters, or flood a single cluster. The prevalence sweep raises prevalence uniformly and is only a proxy for flooding. ASR is judged on 96-token responses by one model judge, and generation-level ASR is composed from undefended and always-on responses. The traffic mixes are simulated; real prevalence per framing is unknown.
 
 \section*{Ethics Statement}
-This work studies defenses against misuse of language models. All harmful prompts come from public benchmarks; we release no new harmful content, and generated responses are stored only for evaluation. The attack templates we use are publicly documented. Our negative results, including the prevalence-flooding failure mode, are reported so that defenders do not over-trust activation gates.
+This work studies defenses against misuse of language models. Harmful prompts come from public benchmarks, the attack templates are publicly documented, and generated responses are kept out of the released artefacts. We report failure modes, including attack-only framings and cluster under-segmentation, so that defenders do not over-trust activation gates.
 
-\bibliographystyle{plainnat}
 \bibliography{references}
 
 \appendix
+
 \section{ARETE Geometry}
 \label{app:arete}
-ARETE standardises activations, maps them through two learned linear heads onto unit hyperspheres for intent and context, and trains with (i) an invariance loss pulling the intent coordinates of a wrapped prompt towards those of its plain version, (ii) a framing-classification loss on the context sphere, and (iii) a cap loss that places harmful intents inside, and benign intents outside, a set of eight unsupervised spherical caps. The gate score is the maximum cap margin. The steering direction is the refusal direction projected onto the orthogonal complement of a rank-16 framing subspace estimated by SVD of wrapper displacements $h_{\text{wrapped}}-h_{\text{plain}}$ on training behaviours.
+ARETE standardises activations and maps them through two learned linear heads onto unit hyperspheres for intent and context. It is trained with (i)~an invariance loss pulling the intent coordinates of a wrapped prompt towards those of its plain version, (ii)~a framing-classification loss on the context sphere, and (iii)~a cap loss placing harmful intents inside, and benign intents outside, eight unsupervised spherical caps. The gate score is the maximum cap margin. Steering uses the refusal direction projected onto the orthogonal complement of a rank-16 framing subspace, estimated by SVD of displacements $h_{\text{wrapped}}-h_{\text{plain}}$ on training behaviours.
+
+\section{Additional Results}
+\label{app:extra}
+
+\paragraph{Pre-registered configuration at generation level.}
+Table~\ref{tab:gen_prereg} repeats Table~\ref{tab:generation} with $k_{\max}{=}12$.
+
+\begin{table}[h]
+\centering
+\resizebox{\columnwidth}{!}{\input{tables/generation_realistic_prereg.tex}}
+\caption{As Table~\ref{tab:generation}, pre-registered $k_{\max}{=}12$, 20 windows.}
+\label{tab:gen_prereg}
+\end{table}
+
+\paragraph{Prevalence.}
+Table~\ref{tab:prev} uses the eight original framings, uniform prevalence $\pi$ and 20 draws.
+
+\begin{table*}[t]
+\centering
+\resizebox{\textwidth}{!}{\input{tables/recal.tex}}
+\caption{Eight original framings, uniform harmful prevalence $\pi$, $k_{\max}{=}12$; recall (\%) and benign FPR (\%) averaged over framings. At $\pi{=}35\%$ (not shown) adaptive recall is at most 5\% on every framing.}
+\label{tab:prev}
+\end{table*}
+
+\paragraph{GCG.}
+Suffixes were optimised for 20 test behaviours against the undefended model (80 steps, 128 candidates per step, top-128 tokens, 20-token suffix). They reach 25\% judged ASR undefended. The final-token linear probe lowers this to 10\%, the multi-view union to 15\%, and ARETE to 22\%. With 20 behaviours these numbers are indicative only.
+
+\paragraph{Longer responses.}
+\input{tables/long_check_text.tex}
 
 \end{document}

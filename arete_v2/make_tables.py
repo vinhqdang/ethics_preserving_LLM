@@ -148,12 +148,114 @@ def table_generation() -> None:
     (OUT / "generation.tex").write_text("\n".join(lines))
 
 
+FRESH_SHORT = {"past_tense": "Past tense", "academic": "Academic", "code": "Code",
+               "translation": "Translation", "payload_split": "Payload split"}
+ALL_SHORT = {**FAM_SHORT, **FRESH_SHORT}
+ROBUST_RULES = (("shared", "Shared"), ("adaptive", "Adaptive"), ("hybrid", "Hybrid"))
+NO_ASR = ("base64",)  # judged ASR is a judge artefact for base64 (decoding echoes), see text
+
+
+def _robust(scenario: str, source: str = "prereg") -> dict:
+    """prereg: k<=12, 20 windows (pre-registered); k30: post-hoc k<=30 sensitivity, 10 windows."""
+    if source == "k30":
+        return json.loads((RES / "kmax30_posthoc.json").read_text())[scenario]
+    return json.loads((RES / f"robust_{TAG}_{scenario}_fresh.json").read_text())["summary"]
+
+
+def _group(fam: str) -> str:
+    if fam in FRESH_SHORT:
+        return "Fresh (pre-registered)"
+    return "Unseen" if fam in UNSEEN else "Seen"
+
+
+def table_robust(source: str = "prereg") -> None:
+    """Harmful TPR (%) per framing under two traffic scenarios; benign FPR (%) averaged."""
+    su, sr = _robust("uniform5", source), _robust("realistic", source)
+    fams = list(FAMILIES) + list(FRESH_SHORT)
+    cols = " & ".join([f"{n}" for _, n in ROBUST_RULES] * 2)
+    lines = ["\\begin{tabular}{ll" + "c" * 6 + "}", "\\toprule",
+             " & & \\multicolumn{3}{c}{Benign-rich traffic} & \\multicolumn{3}{c}{Realistic traffic} \\\\",
+             "\\cmidrule(lr){3-5}\\cmidrule(lr){6-8}",
+             f"Group & Framing & {cols} \\\\", "\\midrule"]
+    last_group = None
+    for f in fams:
+        g = _group(f)
+        if last_group is not None and g != last_group:
+            lines.append("\\midrule")
+        cells = [f"{100 * s[f'{r}|harmful|{f}']['fire'][0]:.0f}" for s in (su, sr) for r, _ in ROBUST_RULES]
+        lines.append(_hdr([g if g != last_group else "", ALL_SHORT[f]] + cells))
+        last_group = g
+    lines.append("\\midrule")
+    fpr = [f"{100 * np.mean([s[f'{r}|benign|{f}']['fire'][0] for f in fams]):.1f}"
+           for s in (su, sr) for r, _ in ROBUST_RULES]
+    lines.append(_hdr(["", "Benign FPR (mean)"] + fpr))
+    lines += ["\\bottomrule", "\\end{tabular}"]
+    (OUT / f"robust_{source}.tex").write_text("\n".join(lines))
+
+
+def table_ablation() -> None:
+    su = _robust("uniform5", "k30")
+    fams = ("fiction", "indirect", "past_tense", "academic", "payload_split")
+    rules = (("shared", "Shared threshold"), ("global_z", "Global robust $z$ ($k{=}1$)"),
+             ("family_z", "Per-family $z$ (oracle groups)"), ("adaptive", "Per-cluster $z$ (ours)"))
+    lines = ["\\begin{tabular}{l" + "c" * (len(fams) + 1) + "}", "\\toprule",
+             _hdr(["Rule"] + [ALL_SHORT[f] for f in fams] + ["FPR"]), "\\midrule"]
+    all_f = list(FAMILIES) + list(FRESH_SHORT)
+    for r, name in rules:
+        cells = [f"{100 * su[f'{r}|harmful|{f}']['fire'][0]:.0f}" for f in fams]
+        fpr = np.mean([su[f"{r}|benign|{f}"]["fire"][0] for f in all_f])
+        lines.append(_hdr([name] + cells + [f"{100 * fpr:.1f}"]))
+    lines += ["\\bottomrule", "\\end{tabular}"]
+    (OUT / "ablation.tex").write_text("\n".join(lines))
+
+
+def table_generation_robust(scenario: str = "realistic", source: str = "k30") -> None:
+    """Composed judged ASR (%) on half B; mean [95% interval] over windows."""
+    su = _robust(scenario, source)
+    fams = [f for f in list(FAMILIES) + list(FRESH_SHORT) if f not in NO_ASR]
+    rows = (("none", "No defense"), ("shared", "Shared threshold"), ("adaptive", "Adaptive (ours)"),
+            ("hybrid", "Hybrid (ours)"))
+    lines = ["\\begin{tabular}{l" + "c" * len(rows) + "}", "\\toprule",
+             _hdr(["Framing"] + [n for _, n in rows]), "\\midrule"]
+    for f in fams:
+        cells = []
+        for r, _ in rows:
+            d = su.get(f"{r}|harmful|{f}", {})
+            cells.append("--" if "asr" not in d else f"{100 * d['asr'][0]:.0f}\\,{{\\scriptsize[{100 * d['asr'][1]:.0f},{100 * d['asr'][2]:.0f}]}}")
+        lines.append(_hdr([ALL_SHORT[f]] + cells))
+    lines.append("\\midrule")
+    ref = []
+    for r, _ in rows:
+        d = su.get(f"{r}|benign|direct", {})
+        ref.append("--" if "refusal" not in d else f"{100 * d['refusal'][0]:.1f}")
+    lines.append(_hdr(["Over-refusal (plain benign)"] + ref))
+    lines += ["\\bottomrule", "\\end{tabular}"]
+    (OUT / f"generation_{scenario}_{source}.tex").write_text("\n".join(lines))
+
+
+def table_fresh_oracle() -> None:
+    fo = json.loads((RES / f"fresh_oracle_{TAG}.json").read_text())
+    lines = ["\\begin{tabular}{lccc}", "\\toprule",
+             _hdr(["Fresh framing", "AUROC", "TPR (shared)", "TPR (oracle)"]), "\\midrule"]
+    for f in FRESH_SHORT:
+        d = fo[f"mean|{f}"]
+        lines.append(_hdr([FRESH_SHORT[f], f"{d['auc']:.2f}", f"{100 * d['shared']:.1f}", f"{100 * d['oracle']:.1f}"]))
+    lines += ["\\bottomrule", "\\end{tabular}"]
+    (OUT / "fresh_oracle.tex").write_text("\n".join(lines))
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     table_detection()
     table_oracle()
     table_recal()
     table_generation()
+    table_robust("prereg")
+    table_robust("k30")
+    table_ablation()
+    table_generation_robust("realistic", "k30")
+    table_generation_robust("realistic", "prereg")
+    table_fresh_oracle()
     print("tables written to", OUT)
 
 

@@ -14,7 +14,7 @@ from pathlib import Path
 
 import torch
 
-from .attacks import FAMILIES, wrap
+from .attacks import ALL_FAMILIES, FAMILIES, wrap_any
 from .data import ROOT, load_split
 from .llm import chat_text, layers_of, load_model
 
@@ -71,18 +71,20 @@ def main() -> None:
     ap.add_argument("--model", default="Qwen/Qwen2.5-1.5B-Instruct")
     ap.add_argument("--layers", type=int, nargs="+", default=[7, 14, 21])
     ap.add_argument("--bs", type=int, default=16)
+    ap.add_argument("--families", nargs="+", default=list(FAMILIES), choices=list(ALL_FAMILIES))
+    ap.add_argument("--splits", nargs="+", default=["train", "val", "test"])
     args = ap.parse_args()
     out = multi_dir(args.model)
     out.mkdir(parents=True, exist_ok=True)
     model, tok = load_model(args.model)
-    for split in ("train", "val", "test"):
+    for split in args.splits:
         harmful, benign = load_split(split)
         for label, items in (("harmful", harmful), ("benign", benign)):
-            for fam in FAMILIES:
+            for fam in args.families:
                 path = out / f"{split}_{label}_{fam}.pt"
                 if path.exists():
                     continue
-                acts = extract(model, tok, [wrap(fam, p.text) for p in items], args.layers, args.bs)
+                acts = extract(model, tok, [wrap_any(fam, p.text) for p in items], args.layers, args.bs)
                 torch.save({"acts": acts, "layers": args.layers, "positions": list(POSITIONS),
                             "uids": [p.uid for p in items]}, path)
                 print(split, label, fam, tuple(acts.shape), flush=True)

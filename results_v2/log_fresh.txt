@@ -1,0 +1,29 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/338 [00:00<?, ?it/s]Loading weights:  19%|#8        | 63/338 [00:00<00:00, 625.76it/s]Loading weights:  37%|###7      | 126/338 [00:00<00:00, 585.44it/s]Loading weights:  58%|#####7    | 195/338 [00:00<00:00, 610.63it/s]Loading weights:  76%|#######6  | 257/338 [00:00<00:00, 569.82it/s]Loading weights:  95%|#########4| 321/338 [00:00<00:00, 581.60it/s]Loading weights: 100%|##########| 338/338 [00:00<00:00, 605.77it/s]
+test harmful past_tense (241, 3, 3, 1536)
+test harmful academic (241, 3, 3, 1536)
+test harmful code (241, 3, 3, 1536)
+test harmful translation (241, 3, 3, 1536)
+test harmful payload_split (241, 3, 3, 1536)
+test benign past_tense (225, 3, 3, 1536)
+test benign academic (225, 3, 3, 1536)
+test benign code (225, 3, 3, 1536)
+test benign translation (225, 3, 3, 1536)
+test benign payload_split (225, 3, 3, 1536)
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/338 [00:00<?, ?it/s]Loading weights:  19%|#8        | 63/338 [00:00<00:00, 617.00it/s]Loading weights:  37%|###6      | 125/338 [00:00<00:00, 597.74it/s]Loading weights:  55%|#####4    | 185/338 [00:00<00:00, 593.27it/s]Loading weights:  72%|#######2  | 245/338 [00:00<00:00, 576.10it/s]Loading weights:  93%|#########2| 313/338 [00:00<00:00, 587.22it/s]Loading weights: 100%|##########| 338/338 [00:00<00:00, 602.75it/s]
+harmful past_tense done
+harmful academic done
+harmful code done
+harmful translation done
+harmful payload_split done
+benign past_tense done
+benign academic done
+benign code done
+benign translation done
+benign payload_split done
+wrote C:\work\ethics_preserving_LLM\results_v2\gen_fresh_Qwen__Qwen2.5-1.5B-Instruct.json
+4580 unique pairs, 4274 not yet judged
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/399 [00:00<?, ?it/s]Loading weights: 100%|##########| 399/399 [00:00<00:00, 5030.11it/s]
+wrote results_v2\gen_fresh_Qwen__Qwen2.5-1.5B-Instruct_judged.json
