@@ -1,0 +1,166 @@
+{
+ "nc": {
+  "uniform5|direct": {
+   "pred": 0.7977103869404053,
+   "meas": 0.7994793640151664
+  },
+  "uniform5|persona": {
+   "pred": 0.9125512324487215,
+   "meas": 0.8836206330034829
+  },
+  "uniform5|refusal_suppression": {
+   "pred": 0.4611031645326517,
+   "meas": 0.47258304219471897
+  },
+  "uniform5|prefix_injection": {
+   "pred": 0.8921973671315345,
+   "meas": 0.8845877878367913
+  },
+  "uniform5|fiction": {
+   "pred": 0.7521576331227783,
+   "meas": 0.7646546491867958
+  },
+  "uniform5|indirect": {
+   "pred": 0.3048978302295845,
+   "meas": 0.336423428128214
+  },
+  "uniform5|base64": {
+   "pred": 0.0054790746173940955,
+   "meas": 0.008570397066475827
+  },
+  "uniform5|leetspeak": {
+   "pred": 0.02685233909284581,
+   "meas": 0.04164761410983133
+  },
+  "uniform5|past_tense": {
+   "pred": 0.4221237032933013,
+   "meas": 0.42960157626499296
+  },
+  "uniform5|academic": {
+   "pred": 0.4799949145794043,
+   "meas": 0.47679228629879744
+  },
+  "uniform5|code": {
+   "pred": 0.7152752120486343,
+   "meas": 0.7082759833680531
+  },
+  "uniform5|translation": {
+   "pred": 0.9357807743894601,
+   "meas": 0.9133976173388442
+  },
+  "uniform5|payload_split": {
+   "pred": 0.8738820260986071,
+   "meas": 0.8777672996151346
+  },
+  "realistic|direct": {
+   "pred": 0.7996270687005774,
+   "meas": 0.7714657958075611
+  },
+  "realistic|persona": {
+   "pred": 0.0,
+   "meas": 0.0
+  },
+  "realistic|refusal_suppression": {
+   "pred": 0.0,
+   "meas": 0.000746409734189045
+  },
+  "realistic|prefix_injection": {
+   "pred": 0.0,
+   "meas": 0.0
+  },
+  "realistic|fiction": {
+   "pred": 0.7544084499527983,
+   "meas": 0.7553844185266831
+  },
+  "realistic|indirect": {
+   "pred": 0.3125890126201651,
+   "meas": 0.32778430214792037
+  },
+  "realistic|base64": {
+   "pred": 0.00613201248814353,
+   "meas": 0.009277308956660343
+  },
+  "realistic|leetspeak": {
+   "pred": 0.0014382239667243973,
+   "meas": 0.0034999283082024525
+  },
+  "realistic|past_tense": {
+   "pred": 0.43713865013127245,
+   "meas": 0.4455637028324443
+  },
+  "realistic|academic": {
+   "pred": 0.48393444316469086,
+   "meas": 0.47168117174657126
+  },
+  "realistic|code": {
+   "pred": 0.7094859672837321,
+   "meas": 0.6961670717911259
+  },
+  "realistic|translation": {
+   "pred": 0.9361623075202838,
+   "meas": 0.9225835252049853
+  },
+  "realistic|payload_split": {
+   "pred": 0.0,
+   "meas": 0.0
+  }
+ },
+ "fallback": {
+  "direct": {
+   "recall": 0.9087136929460581,
+   "fpr": 0.008888888888888889
+  },
+  "persona": {
+   "recall": 0.35269709543568467,
+   "fpr": 0.0
+  },
+  "refusal_suppression": {
+   "recall": 0.4024896265560166,
+   "fpr": 0.0
+  },
+  "prefix_injection": {
+   "recall": 0.6970954356846473,
+   "fpr": 0.0
+  },
+  "fiction": {
+   "recall": 0.0,
+   "fpr": 0.0
+  },
+  "indirect": {
+   "recall": 0.004149377593360996,
+   "fpr": 0.0
+  },
+  "base64": {
+   "recall": 0.0,
+   "fpr": 0.0
+  },
+  "leetspeak": {
+   "recall": 0.0,
+   "fpr": 0.0
+  },
+  "past_tense": {
+   "recall": 0.0,
+   "fpr": 0.0
+  },
+  "academic": {
+   "recall": 0.13278008298755187,
+   "fpr": 0.0
+  },
+  "code": {
+   "recall": 0.6016597510373444,
+   "fpr": 0.008888888888888889
+  },
+  "translation": {
+   "recall": 0.7634854771784232,
+   "fpr": 0.0
+  },
+  "payload_split": {
+   "recall": 0.0,
+   "fpr": 0.0
+  }
+ },
+ "nc_summary": {
+  "corr": 0.9994377901834168,
+  "mae": 0.009750321110445541
+ }
+}
