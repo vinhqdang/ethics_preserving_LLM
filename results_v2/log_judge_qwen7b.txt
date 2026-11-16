@@ -1,0 +1,42 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+layers [7, 14, 21] mid 14
+12112 unique pairs, 12076 not yet judged
+Loading weights:   0%|          | 0/399 [00:00<?, ?it/s]Loading weights:  24%|##3       | 94/399 [00:00<00:00, 937.06it/s]Loading weights:  84%|########4 | 337/399 [00:00<00:00, 1812.80it/s]Loading weights: 100%|##########| 399/399 [00:00<00:00, 1932.57it/s]
+judge 0/1600 t=0s
+judge 400/1600 t=100s
+judge 800/1600 t=218s
+judge 1200/1600 t=327s
+judge 0/1600 t=0s
+judge 400/1600 t=117s
+judge 800/1600 t=234s
+judge 1200/1600 t=346s
+judge 0/1600 t=0s
+judge 400/1600 t=122s
+judge 800/1600 t=245s
+judge 1200/1600 t=362s
+judge 0/1600 t=0s
+judge 400/1600 t=127s
+judge 800/1600 t=245s
+judge 1200/1600 t=360s
+judge 0/1600 t=0s
+judge 400/1600 t=124s
+judge 800/1600 t=249s
+judge 1200/1600 t=366s
+judge 0/1600 t=0s
+judge 400/1600 t=128s
+judge 800/1600 t=247s
+judge 1200/1600 t=369s
+judge 0/1600 t=0s
+judge 400/1600 t=121s
+judge 800/1600 t=242s
+judge 1200/1600 t=363s
+judge 0/876 t=0s
+judge 400/876 t=121s
+judge 800/876 t=248s
+judge done
+robust done realistic 30
+robust done uniform5 30
+robust done realistic 12
+robust done uniform5 12
+ALL_DONE Qwen/Qwen2.5-7B-Instruct
+exit=0

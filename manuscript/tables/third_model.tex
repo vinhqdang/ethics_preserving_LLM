@@ -1,17 +1,17 @@
-\begin{tabular}{lcccccc}
+\begin{tabular}{lcccccccc}
 \toprule
- & & \multicolumn{4}{c}{Benign-rich} & Realistic \\
-\cmidrule(lr){3-6}\cmidrule(lr){7-7}
-Framing & AUROC & Shared & Oracle & Hyb.\,12 & Hyb.\,30 & Hyb.\,30 \\
+ & & \multicolumn{4}{c}{Recall (\%)} & \multicolumn{3}{c}{Judged ASR (\%)} \\
+\cmidrule(lr){3-6}\cmidrule(lr){7-9}
+Framing & AUROC & Shared & Oracle & Hyb.\,12 & Hyb.\,30 & None & Shared & Hyb.\,30 \\
 \midrule
-Fiction & 0.99 & 8 & 89 & 41 & 78 & 82 \\
-Indirect & 1.00 & 6 & 97 & 78 & 87 & 86 \\
-Past tense & 0.94 & 0 & 63 & 31 & 57 & 54 \\
-Academic & 0.98 & 17 & 66 & 10 & 71 & 73 \\
-Code & 1.00 & 48 & 95 & 45 & 70 & 68 \\
-Translation & 1.00 & 83 & 97 & 86 & 86 & 83 \\
-Payload split & 1.00 & 0 & 92 & 82 & 82 & 0 \\
+Fiction & 0.99 & 8 & 89 & 41 & 78 & 44 & 43 & 13 \\
+Indirect & 1.00 & 6 & 97 & 78 & 87 & 6 & 6 & 2 \\
+Past tense & 0.94 & 0 & 63 & 31 & 57 & 47 & 47 & 23 \\
+Academic & 0.98 & 17 & 66 & 10 & 71 & 22 & 15 & 6 \\
+Code & 1.00 & 48 & 95 & 45 & 70 & 7 & 7 & 5 \\
+Translation & 1.00 & 83 & 97 & 86 & 86 & 13 & 6 & 4 \\
+Payload split & 1.00 & 0 & 92 & 82 & 82 & 15 & 15 & 5 \\
 \midrule
-Benign FPR (mean) &  & 0.3 &  & 0.6 & 0.7 & 0.8 \\
+Benign FPR (mean) &  & 0.3 &  & 0.6 & 0.7 &  &  &  \\
 \bottomrule
 \end{tabular}

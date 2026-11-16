@@ -1,0 +1,32 @@
+17:45:46
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+layers [7, 14, 21] mid 14
+Loading weights:   0%|          | 0/339 [00:00<?, ?it/s]Loading weights:   1%|          | 2/339 [00:00<02:28,  2.27it/s]Loading weights:   1%|1         | 4/339 [00:00<01:10,  4.73it/s]Loading weights:   2%|1         | 6/339 [00:01<00:56,  5.91it/s]Loading weights:   5%|4         | 16/339 [00:01<00:16, 19.16it/s]Loading weights:   6%|5         | 20/339 [00:01<00:16, 19.06it/s]Loading weights:   8%|8         | 28/339 [00:01<00:11, 27.27it/s]Loading weights:   9%|9         | 32/339 [00:02<00:13, 22.68it/s]Loading weights:  12%|#1        | 40/339 [00:02<00:10, 28.82it/s]Loading weights:  13%|#2        | 44/339 [00:02<00:11, 26.26it/s]Loading weights:  15%|#5        | 52/339 [00:02<00:08, 32.58it/s]Loading weights:  17%|#6        | 56/339 [00:02<00:10, 26.27it/s]Loading weights:  19%|#8        | 64/339 [00:02<00:08, 32.27it/s]Loading weights:  20%|##        | 68/339 [00:03<00:09, 28.00it/s]Loading weights:  22%|##2       | 76/339 [00:03<00:07, 33.08it/s]Loading weights:  24%|##3       | 80/339 [00:03<00:09, 28.29it/s]Loading weights:  26%|##5       | 88/339 [00:03<00:07, 34.10it/s]Loading weights:  27%|##7       | 92/339 [00:03<00:09, 27.02it/s]Loading weights:  29%|##9       | 100/339 [00:04<00:08, 28.87it/s]Loading weights:  31%|###1      | 106/339 [00:04<00:07, 32.68it/s]Loading weights:  33%|###2      | 111/339 [00:04<00:06, 34.93it/s]Loading weights:  34%|###3      | 115/339 [00:04<00:07, 29.24it/s]Loading weights:  37%|###6      | 124/339 [00:04<00:06, 34.56it/s]Loading weights:  38%|###7      | 128/339 [00:05<00:06, 30.29it/s]Loading weights:  40%|####      | 136/339 [00:05<00:05, 35.72it/s]Loading weights:  41%|####1     | 140/339 [00:05<00:06, 30.74it/s]Loading weights:  44%|####3     | 148/339 [00:05<00:05, 36.52it/s]Loading weights:  45%|####4     | 152/339 [00:05<00:06, 30.33it/s]Loading weights:  47%|####7     | 160/339 [00:05<00:04, 35.97it/s]Loading weights:  48%|####8     | 164/339 [00:06<00:06, 27.65it/s]Loading weights:  51%|#####     | 172/339 [00:06<00:04, 33.86it/s]Loading weights:  52%|#####1    | 176/339 [00:06<00:06, 25.83it/s]Loading weights:  54%|#####4    | 184/339 [00:06<00:04, 32.28it/s]Loading weights:  55%|#####5    | 188/339 [00:06<00:05, 28.59it/s]Loading weights:  58%|#####7    | 196/339 [00:07<00:04, 34.86it/s]Loading weights:  59%|#####8    | 200/339 [00:07<00:05, 27.75it/s]Loading weights:  61%|######1   | 208/339 [00:07<00:03, 34.93it/s]Loading weights:  63%|######2   | 213/339 [00:07<00:04, 28.68it/s]Loading weights:  65%|######4   | 220/339 [00:07<00:03, 33.54it/s]Loading weights:  66%|######6   | 224/339 [00:08<00:04, 27.28it/s]Loading weights: 100%|##########| 339/339 [00:08<00:00, 41.21it/s]
+Some parameters are on the meta device because they were offloaded to the cpu.
+generate harmful persona
+generate harmful refusal_suppression
+generate harmful prefix_injection
+generate harmful fiction
+generate harmful indirect
+generate harmful base64
+generate harmful leetspeak
+generate harmful past_tense
+generate harmful academic
+generate harmful code
+generate harmful translation
+generate harmful payload_split
+generate benign direct
+generate benign persona
+generate benign refusal_suppression
+generate benign prefix_injection
+generate benign fiction
+generate benign indirect
+generate benign base64
+generate benign leetspeak
+generate benign past_tense
+generate benign academic
+generate benign code
+generate benign translation
+generate benign payload_split
+ALL_DONE Qwen/Qwen2.5-7B-Instruct
+exit=0

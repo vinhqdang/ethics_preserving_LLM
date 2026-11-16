@@ -300,28 +300,31 @@ QWEN7_TAG = "Qwen__Qwen2.5-7B-Instruct"
 
 
 def table_third_model() -> None:
-    """Detection-level replication on Qwen2.5-7B (no generation), configuration frozen from the 1.5B study."""
+    """Replication on Qwen2.5-7B with the configuration frozen from the 1.5B study (benign-rich traffic)."""
     def load(k: int, scen: str) -> dict:
         return json.loads((RES / f"robust_{QWEN7_TAG}_{scen}_k{k}.json").read_text())["summary"]
 
-    u30, u12, r30 = load(30, "uniform5"), load(12, "uniform5"), load(30, "realistic")
+    u30, u12 = load(30, "uniform5"), load(12, "uniform5")
     diag = json.loads((RES / f"diag_{QWEN7_TAG}.json").read_text())
     fams = ["fiction", "indirect", "past_tense", "academic", "code", "translation", "payload_split"]
-    lines = [r"\begin{tabular}{lcccccc}", r"\toprule",
-             r" & & \multicolumn{4}{c}{Benign-rich} & Realistic \\",
-             r"\cmidrule(lr){3-6}\cmidrule(lr){7-7}",
-             _hdr(["Framing", "AUROC", "Shared", "Oracle", r"Hyb.\,12", r"Hyb.\,30", r"Hyb.\,30"]),
+    lines = [r"\begin{tabular}{lcccccccc}", r"\toprule",
+             r" & & \multicolumn{4}{c}{Recall (\%)} & \multicolumn{3}{c}{Judged ASR (\%)} \\",
+             r"\cmidrule(lr){3-6}\cmidrule(lr){7-9}",
+             _hdr(["Framing", "AUROC", "Shared", "Oracle", r"Hyb.\,12", r"Hyb.\,30", "None", "Shared",
+                   r"Hyb.\,30"]),
              r"\midrule"]
     rec = lambda s, r, f: f"{100 * s[f'{r}|harmful|{f}']['fire'][0]:.0f}"
+    asr = lambda s, r, f: f"{100 * s[f'{r}|harmful|{f}']['asr'][0]:.0f}"
     for f in fams:
         d = diag[f"mean|{f}"]
         lines.append(_hdr([ALL_SHORT[f], f"{d['auc']:.2f}", rec(u30, "shared", f), f"{100 * d['oracle_tpr']:.0f}",
-                           rec(u12, "hybrid", f), rec(u30, "hybrid", f), rec(r30, "hybrid", f)]))
+                           rec(u12, "hybrid", f), rec(u30, "hybrid", f), asr(u30, "none", f),
+                           asr(u30, "shared", f), asr(u30, "hybrid", f)]))
     all_f = list(FAMILIES) + list(FRESH_SHORT)
     fpr = lambda s, r: 100 * np.mean([s[f"{r}|benign|{f}"]["fire"][0] for f in all_f])
     lines.append(r"\midrule")
     lines.append(_hdr(["Benign FPR (mean)", "", f"{fpr(u30, 'shared'):.1f}", "", f"{fpr(u12, 'hybrid'):.1f}",
-                       f"{fpr(u30, 'hybrid'):.1f}", f"{fpr(r30, 'hybrid'):.1f}"]))
+                       f"{fpr(u30, 'hybrid'):.1f}", "", "", ""]))
     lines += [r"\bottomrule", r"\end{tabular}"]
     (OUT / "third_model.tex").write_text("\n".join(lines))
 
