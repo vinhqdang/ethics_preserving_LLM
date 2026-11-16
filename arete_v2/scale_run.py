@@ -130,15 +130,18 @@ def main() -> None:
     ap.add_argument("--bs", type=int, default=64)
     ap.add_argument("--tokens", type=int, default=96)
     ap.add_argument("--windows", type=int, default=10)
+    ap.add_argument("--gpu-gib", type=float, default=None,
+                    help="GPU memory for weights; the rest stays in CPU RAM (for a 16 GB card)")
+    ap.add_argument("--extract-bs", type=int, default=32)
     ap.add_argument("--steps", nargs="+", default=["extract", "generate", "judge", "diagnose", "robust"])
     args = ap.parse_args()
     RES.mkdir(exist_ok=True)
     layers, mid = layers_for(args.model)
     print("layers", layers, "mid", mid, flush=True)
     if {"extract", "generate"} & set(args.steps):
-        model, tok = load_model(args.model, torch.bfloat16)
+        model, tok = load_model(args.model, torch.bfloat16, args.gpu_gib)
         if "extract" in args.steps:
-            step_extract(model, tok, args.model, layers, 32)
+            step_extract(model, tok, args.model, layers, args.extract_bs)
         if "generate" in args.steps:
             step_generate(model, tok, args.model, mid, args.bs, args.tokens)
         del model

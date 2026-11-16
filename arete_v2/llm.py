@@ -10,12 +10,19 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 DEFAULT_SYSTEM = None  # no system prompt: we test the model + defense as shipped
 
 
-def load_model(name: str, dtype: torch.dtype = torch.float16):
+def load_model(name: str, dtype: torch.dtype = torch.float16, gpu_gib: Optional[float] = None):
+    """Load the target model. With ``gpu_gib`` the weights that do not fit in that much GPU memory are
+    kept in CPU RAM and streamed in each forward pass (exact weights, slower than all-GPU)."""
     tok = AutoTokenizer.from_pretrained(name)
     tok.padding_side = "left"
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
-    model = AutoModelForCausalLM.from_pretrained(name, dtype=dtype).to("cuda").eval()
+    if gpu_gib is None:
+        model = AutoModelForCausalLM.from_pretrained(name, dtype=dtype).to("cuda").eval()
+    else:
+        model = AutoModelForCausalLM.from_pretrained(
+            name, dtype=dtype, device_map="auto",
+            max_memory={0: f"{gpu_gib}GiB", "cpu": "48GiB"}).eval()
     for p in model.parameters():
         p.requires_grad_(False)
     return model, tok
