@@ -299,13 +299,20 @@ def table_second_model() -> None:
 QWEN7_TAG = "Qwen__Qwen2.5-7B-Instruct"
 
 
+GEMMA_TAG = "google__gemma-4-E4B-it"
+
+
 def table_third_model() -> None:
-    """Replication on Qwen2.5-7B with the configuration frozen from the 1.5B study (benign-rich traffic)."""
+    table_replication(QWEN7_TAG, "third_model.tex")
+
+
+def table_replication(tag: str, out_name: str) -> None:
+    """Replication with the configuration frozen from the 1.5B study (benign-rich traffic)."""
     def load(k: int, scen: str) -> dict:
-        return json.loads((RES / f"robust_{QWEN7_TAG}_{scen}_k{k}.json").read_text())["summary"]
+        return json.loads((RES / f"robust_{tag}_{scen}_k{k}.json").read_text())["summary"]
 
     u30, u12 = load(30, "uniform5"), load(12, "uniform5")
-    diag = json.loads((RES / f"diag_{QWEN7_TAG}.json").read_text())
+    diag = json.loads((RES / f"diag_{tag}.json").read_text())
     fams = ["fiction", "indirect", "past_tense", "academic", "code", "translation", "payload_split"]
     lines = [r"\begin{tabular}{lcccccccc}", r"\toprule",
              r" & & \multicolumn{4}{c}{Recall (\%)} & \multicolumn{3}{c}{Judged ASR (\%)} \\",
@@ -326,9 +333,11 @@ def table_third_model() -> None:
     lines.append(_hdr(["Benign FPR (mean)", "", f"{fpr(u30, 'shared'):.1f}", "", f"{fpr(u12, 'hybrid'):.1f}",
                        f"{fpr(u30, 'hybrid'):.1f}", "", "", ""]))
     lines += [r"\bottomrule", r"\end{tabular}"]
-    (OUT / "third_model.tex").write_text("\n".join(lines))
+    (OUT / out_name).write_text("\n".join(lines))
 
 
 if __name__ == "__main__":
     table_second_model()
     table_third_model()
+    if (RES / f"diag_{GEMMA_TAG}.json").exists():
+        table_replication(GEMMA_TAG, "gemma_model.tex")

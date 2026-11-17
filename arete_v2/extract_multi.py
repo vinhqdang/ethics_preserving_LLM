@@ -16,7 +16,7 @@ import torch
 
 from .attacks import ALL_FAMILIES, FAMILIES, wrap_any
 from .data import ROOT, load_split
-from .llm import chat_text, layers_of, load_model
+from .llm import chat_text, encode, layers_of, load_model
 
 POSITIONS = ("last", "tinst", "mean")
 SENTINEL = "<<U>>"
@@ -43,8 +43,7 @@ def extract(model, tok, prompts: list[str], layers: list[int], bs: int) -> torch
     chunks = []
     try:
         for i in range(0, len(prompts), bs):
-            enc = tok([chat_text(tok, p) for p in prompts[i : i + bs]], return_tensors="pt",
-                      padding=True).to("cuda")
+            enc = encode(tok, [chat_text(tok, p) for p in prompts[i : i + bs]]).to("cuda")
             model(**enc)
             mask = enc["attention_mask"]
             seq = mask.shape[1]

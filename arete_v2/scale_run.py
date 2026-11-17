@@ -31,7 +31,7 @@ RES = ROOT / "results_v2"
 
 
 def layers_for(model_name: str) -> tuple[list[int], int]:
-    n = AutoConfig.from_pretrained(model_name).num_hidden_layers
+    n = AutoConfig.from_pretrained(model_name).get_text_config().num_hidden_layers
     return [n // 4, n // 2, (3 * n) // 4], n // 2
 
 
