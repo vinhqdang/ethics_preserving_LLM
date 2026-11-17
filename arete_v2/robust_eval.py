@@ -87,11 +87,11 @@ def _z(scores, center, scale):
     return (scores - center) / max(scale, 1e-6)
 
 
-def one_window(pool: Pool, fams, scenario, rng, thr, thr_h, zs, zs_h, fb, cfg) -> dict:
+def draw_window(pool: Pool, fams, scenario, rng):
+    """A/B split of prompts; the unlabeled traffic window is built from half A only."""
     n_h = len(next(v for (l, _), v in pool.score.items() if l == "harmful"))
     n_b = len(next(v for (l, _), v in pool.score.items() if l == "benign"))
     in_a_h, in_a_b = rng.random(n_h) < 0.5, rng.random(n_b) < 0.5
-    # ---- traffic window from half A
     s_w, f_w, fam_w = [], [], []
     for f in fams:
         b_idx = np.flatnonzero(in_a_b)
@@ -100,7 +100,11 @@ def one_window(pool: Pool, fams, scenario, rng, thr, thr_h, zs, zs_h, fb, cfg) -
         h_idx = rng.choice(np.flatnonzero(in_a_h), size=min(k, int(in_a_h.sum())), replace=False)
         for l, idx in (("benign", b_idx), ("harmful", h_idx)):
             s_w.append(pool.score[(l, f)][idx]); f_w.append(pool.feats[(l, f)][idx]); fam_w += [f] * len(idx)
-    s_w, f_w, fam_w = np.concatenate(s_w), np.concatenate(f_w), np.array(fam_w)
+    return in_a_h, in_a_b, np.concatenate(s_w), np.concatenate(f_w), np.array(fam_w)
+
+
+def one_window(pool: Pool, fams, scenario, rng, thr, thr_h, zs, zs_h, fb, cfg) -> dict:
+    in_a_h, in_a_b, s_w, f_w, fam_w = draw_window(pool, fams, scenario, rng)
     sm = fit_stream_model(s_w, f_w, cfg)
     g_stats = robust_stats(s_w)
     fam_stats = {f: robust_stats(s_w[fam_w == f]) for f in fams}

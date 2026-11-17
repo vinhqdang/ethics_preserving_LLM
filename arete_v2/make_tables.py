@@ -341,3 +341,53 @@ if __name__ == "__main__":
     table_third_model()
     if (RES / f"diag_{GEMMA_TAG}.json").exists():
         table_replication(GEMMA_TAG, "gemma_model.tex")
+
+
+ROBUSTNESS_FAMS = ["persona", "refusal_suppression", "prefix_injection", "fiction", "indirect", "past_tense",
+                   "academic", "code", "payload_split"]
+
+
+def _mean_fpr(s: dict, rule: str, get=lambda d: d["fire"]) -> float:
+    all_f = list(FAMILIES) + list(FRESH_SHORT)
+    return 100 * np.mean([get(s[f"{rule}|benign|{f}"]) for f in all_f])
+
+
+def table_label_shift() -> None:
+    """Per-cluster label-shift baselines (EM, BBSE) on the k<=30 windows of Table robust."""
+    res = json.loads((RES / f"label_shift_{TAG}_k30.json").read_text())
+    rules = ["shared", "hybrid", "em", "bbse"]
+    names = ["Shared", "Hybrid", "EM", "BBSE"]
+    lines = [r"\begin{tabular}{l" + "c" * 8 + "}", r"\toprule",
+             r" & \multicolumn{4}{c}{Benign-rich} & \multicolumn{4}{c}{Realistic} \\",
+             r"\cmidrule(lr){2-5}\cmidrule(lr){6-9}", _hdr(["Framing"] + names + names), r"\midrule"]
+    for f in ROBUSTNESS_FAMS:
+        row = [ALL_SHORT[f]]
+        for scen in ("uniform5", "realistic"):
+            s = res[scen]["summary"]
+            row += [f"{100 * s[f'{r}|harmful|{f}']['fire']:.0f}" for r in rules]
+        lines.append(_hdr(row))
+    lines.append(r"\midrule")
+    row = ["Benign FPR (mean)"]
+    for scen in ("uniform5", "realistic"):
+        row += [f"{_mean_fpr(res[scen]['summary'], r):.1f}" for r in rules]
+    lines += [_hdr(row), r"\bottomrule", r"\end{tabular}"]
+    (OUT / "label_shift.tex").write_text("\n".join(lines))
+
+
+def table_paraphrase() -> None:
+    """Fixed vs paraphrased framing templates on TEST (benign-rich traffic, k<=30)."""
+    res = json.loads((RES / f"para_eval_{TAG}_k30.json").read_text())
+    o, p = res["original"], res["para"]
+    lines = [r"\begin{tabular}{lcccccc}", r"\toprule",
+             r" & \multicolumn{2}{c}{AUROC} & \multicolumn{2}{c}{Shared} & \multicolumn{2}{c}{Hybrid} \\",
+             r"\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}",
+             _hdr(["Framing"] + ["Fixed", "Para."] * 3), r"\midrule"]
+    for f in ROBUSTNESS_FAMS:
+        rec = lambda d, r: f"{100 * d['uniform5'][f'{r}|harmful|{f}']:.0f}"
+        lines.append(_hdr([ALL_SHORT[f], f"{o['auroc'][f]:.2f}", f"{p['auroc'][f]:.2f}", rec(o, "shared"),
+                           rec(p, "shared"), rec(o, "hybrid"), rec(p, "hybrid")]))
+    fpr = lambda d, r: _mean_fpr(d["uniform5"], r, get=lambda x: x)
+    lines += [r"\midrule", _hdr(["Benign FPR (mean)", "", "", f"{fpr(o, 'shared'):.1f}", f"{fpr(p, 'shared'):.1f}",
+                                 f"{fpr(o, 'hybrid'):.1f}", f"{fpr(p, 'hybrid'):.1f}"]),
+              r"\bottomrule", r"\end{tabular}"]
+    (OUT / "paraphrase.tex").write_text("\n".join(lines))

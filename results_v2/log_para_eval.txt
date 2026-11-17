@@ -1,0 +1,28 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/338 [00:00<?, ?it/s]Loading weights:   0%|          | 1/338 [00:00<01:32,  3.65it/s]Loading weights:  33%|###2      | 111/338 [00:00<00:00, 328.92it/s]Loading weights:  46%|####6     | 156/338 [00:00<00:00, 327.85it/s]Loading weights:  58%|#####7    | 196/338 [00:00<00:00, 284.95it/s]Loading weights:  68%|######8   | 231/338 [00:00<00:00, 272.50it/s]Loading weights:  79%|#######8  | 267/338 [00:01<00:00, 277.27it/s]Loading weights:  90%|########9 | 303/338 [00:01<00:00, 265.30it/s]Loading weights:  98%|#########7| 331/338 [00:01<00:00, 246.96it/s]Loading weights: 100%|##########| 338/338 [00:01<00:00, 261.78it/s]
+para harmful direct (241, 3, 3, 1536)
+para harmful persona (241, 3, 3, 1536)
+para harmful refusal_suppression (241, 3, 3, 1536)
+para harmful prefix_injection (241, 3, 3, 1536)
+para harmful fiction (241, 3, 3, 1536)
+para harmful indirect (241, 3, 3, 1536)
+para harmful base64 (241, 3, 3, 1536)
+para harmful leetspeak (241, 3, 3, 1536)
+para harmful past_tense (241, 3, 3, 1536)
+para harmful academic (241, 3, 3, 1536)
+para harmful code (241, 3, 3, 1536)
+para harmful translation (241, 3, 3, 1536)
+para harmful payload_split (241, 3, 3, 1536)
+para benign direct (225, 3, 3, 1536)
+para benign persona (225, 3, 3, 1536)
+para benign refusal_suppression (225, 3, 3, 1536)
+para benign prefix_injection (225, 3, 3, 1536)
+para benign fiction (225, 3, 3, 1536)
+para benign indirect (225, 3, 3, 1536)
+para benign base64 (225, 3, 3, 1536)
+para benign leetspeak (225, 3, 3, 1536)
+para benign past_tense (225, 3, 3, 1536)
+para benign academic (225, 3, 3, 1536)
+para benign code (225, 3, 3, 1536)
+para benign translation (225, 3, 3, 1536)
+para benign payload_split (225, 3, 3, 1536)
