@@ -1,0 +1,21 @@
+\begin{tabular}{lcccccccc}
+\toprule
+ & & \multicolumn{4}{c}{Recall (\%)} & FPR (\%) & \multicolumn{2}{c}{ASR (\%)} \\
+\cmidrule(lr){3-6}\cmidrule(lr){8-9}
+Framing & AUROC & Verdict & Loose & Shared & Oracle & Verdict & None & Verdict \\
+\midrule
+Direct & 0.96 & 99 & 100 & 49 & 27 & 29 & 1 & 0 \\
+Persona & 0.75 & 99 & 100 & 2 & 0 & 63 & 4 & 0 \\
+Ref.\,supp. & 0.95 & 99 & 100 & 16 & 24 & 40 & 3 & 0 \\
+Prefix inj. & 0.95 & 99 & 100 & 4 & 28 & 38 & 76 & 0 \\
+Fiction & 0.95 & 99 & 100 & 0 & 40 & 35 & 89 & 0 \\
+Indirect & 0.97 & 97 & 100 & 7 & 58 & 20 & 13 & 2 \\
+Base64 & 0.45 & 0 & 100 & 0 & 0 & 0 & -- & -- \\
+Leetspeak & 0.73 & 18 & 69 & 0 & 16 & 4 & 0 & 0 \\
+Past tense & 0.93 & 86 & 98 & 1 & 25 & 16 & 6 & 2 \\
+Academic & 0.97 & 99 & 100 & 0 & 60 & 27 & 15 & 0 \\
+Code & 0.95 & 95 & 100 & 0 & 43 & 26 & 45 & 3 \\
+Translation & 0.97 & 98 & 100 & 0 & 29 & 24 & 51 & 0 \\
+Payload split & 0.95 & 95 & 100 & 2 & 17 & 24 & 95 & 4 \\
+\bottomrule
+\end{tabular}
