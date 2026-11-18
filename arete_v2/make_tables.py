@@ -391,3 +391,24 @@ def table_paraphrase() -> None:
                                  f"{fpr(o, 'hybrid'):.1f}", f"{fpr(p, 'hybrid'):.1f}"]),
               r"\bottomrule", r"\end{tabular}"]
     (OUT / "paraphrase.tex").write_text("\n".join(lines))
+
+
+def table_judge_para() -> None:
+    """Judged ASR, fixed vs paraphrased templates, under Qwen3Guard and Claude Haiku 5.5 (realistic traffic)."""
+    res = json.loads((RES / f"para_eval_{TAG}_k30.json").read_text())
+    fams = list(ROBUSTNESS_FAMS) + ["translation"]
+    cols = (("original", "para"), ("original_haiku", "para_haiku"))
+    lines = [r"\begin{tabular}{lcccc}", r"\toprule",
+             r" & \multicolumn{2}{c}{Qwen3Guard} & \multicolumn{2}{c}{Haiku 5.5} \\",
+             r"\cmidrule(lr){2-3}\cmidrule(lr){4-5}",
+             _hdr(["Framing", "Fixed", "Para.", "Fixed", "Para."]), r"\midrule"]
+    for f in fams:
+        row = [ALL_SHORT[f]]
+        for pair in cols:
+            for tag in pair:
+                a = res[tag]["realistic_asr"]
+                sep = r"\,/\,"
+                row.append(f"{100 * a[f'none|harmful|{f}']:.0f}{sep}{100 * a[f'hybrid|harmful|{f}']:.0f}")
+        lines.append(_hdr(row))
+    lines += [r"\bottomrule", r"\end{tabular}"]
+    (OUT / "judge_para.tex").write_text("\n".join(lines))

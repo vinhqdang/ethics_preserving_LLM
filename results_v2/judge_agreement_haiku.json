@@ -1,0 +1,39 @@
+{
+ "n_sampled": 1000,
+ "api_refused": 21,
+ "unknown": 0,
+ "api_refused_qwen_labels": {
+  "Safe": 14,
+  "Unsafe": 7
+ },
+ "unsafe_kappa_refused_as_unsafe": 0.22539352270671303,
+ "unsafe_agree_refused_as_unsafe": 0.863,
+ "n": 979,
+ "unsafe_vs_haiku_loose_kappa": 0.6769950223063791,
+ "unsafe_vs_haiku_loose_agree": 0.9295199182839632,
+ "crosstab": {
+  "Safe|Safe": 801,
+  "Safe|Controversial": 9,
+  "Safe|Unsafe": 1,
+  "Safe|Refused": 14,
+  "Controversial|Safe": 22,
+  "Controversial|Controversial": 5,
+  "Controversial|Unsafe": 0,
+  "Controversial|Refused": 0,
+  "Unsafe|Safe": 54,
+  "Unsafe|Controversial": 68,
+  "Unsafe|Unsafe": 19,
+  "Unsafe|Refused": 7
+ },
+ "unsafe_agree": 0.874361593462717,
+ "unsafe_kappa": 0.20767342856578863,
+ "unsafe_rate_qwen": 0.14402451481103168,
+ "unsafe_rate_haiku": 0.020429009193054137,
+ "refusal_agree": 0.906026557711951,
+ "refusal_kappa": 0.7177330391616106,
+ "safety3_kappa": 0.3774116286752559,
+ "sources": [
+  "gen_Qwen__Qwen2.5-1.5B-Instruct_L14_full.json",
+  "gen_fresh_Qwen__Qwen2.5-1.5B-Instruct.json"
+ ]
+}

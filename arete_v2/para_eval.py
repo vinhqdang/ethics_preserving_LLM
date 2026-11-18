@@ -49,7 +49,34 @@ def run_extract(model_name: str, layers: list[int], bs: int) -> None:
             print("para", label, fam, tuple(acts.shape), flush=True)
 
 
-def para_pool(model: str, cfg: Config, score_fn) -> RE.Pool:
+def para_labels(model: str, judge: str):
+    """Unsafe/refusal labels of the paraphrased generations; `direct` has no wrapper, so its
+    labels come from the original generations (Qwen3Guard) when judge is qwen."""
+    tag = model.replace("/", "__")
+    suffix = "_judged.json" if judge == "qwen" else "_judged_haiku.json"
+    un, uo, rn, ro = {}, {}, {}, {}
+    names = [f"gen_para_{tag}{suffix}"] + ([f"gen_{tag}_L14_full_judged.json"] if judge == "qwen" else [])
+    for name in reversed(names):  # para file last so it wins for every wrapped framing
+        path = ROOT / "results_v2" / name
+        if path.exists():
+            for dst, src in zip((un, uo, rn, ro), RE._labels(path, FAMS)):
+                dst.update(src if name.startswith("gen_para") else
+                           {k: v for k, v in src.items() if k[1] == "direct"})
+    return un, uo, rn, ro
+
+
+def original_haiku_labels(model: str):
+    tag = model.replace("/", "__")
+    un, uo, rn, ro = {}, {}, {}, {}
+    for name in (f"gen_{tag}_L14_full_judged_haiku.json", f"gen_fresh_{tag}_judged_haiku.json"):
+        path = ROOT / "results_v2" / name
+        if path.exists():
+            for dst, src in zip((un, uo, rn, ro), RE._labels(path, FAMS)):
+                dst.update(src)
+    return un, uo, rn, ro
+
+
+def para_pool(model: str, cfg: Config, score_fn, judge: str = "qwen") -> RE.Pool:
     d = para_dir(model)
     score, feats = {}, {}
     for label in ("harmful", "benign"):
@@ -61,7 +88,7 @@ def para_pool(model: str, cfg: Config, score_fn) -> RE.Pool:
             with torch.no_grad():
                 score[(label, fam)] = score_fn(a[:, sl, sp].float()).cpu().numpy()
             feats[(label, fam)] = a[:, cl, cp].float().numpy()
-    return RE.Pool(score, feats, {}, {}, {}, {})
+    return RE.Pool(score, feats, *para_labels(model, judge))
 
 
 def auroc(pool: RE.Pool, fam: str) -> float:
@@ -76,14 +103,22 @@ def run_eval(model: str, windows: int, fpr: float, layer: int) -> dict:
     score, thr, zs, fb = fit_gate(tr, va, list(SEEN_FAMILIES), cfg, fpr)
     _, thr_h, zs_h, _ = fit_gate(tr, va, list(SEEN_FAMILIES), cfg, fpr / 2)
     res = {}
-    for tag, pool in (("original", RE.build_pool(model, FAMS, cfg, score)),
-                      ("para", para_pool(model, cfg, score))):
+    orig = RE.build_pool(model, FAMS, cfg, score)
+    pools = (("original", orig),
+             ("original_haiku", RE.Pool(orig.score, orig.feats, *original_haiku_labels(model))),
+             ("para", para_pool(model, cfg, score, "qwen")),
+             ("para_haiku", para_pool(model, cfg, score, "haiku")))
+    for tag, pool in pools:
         res[tag] = {"auroc": {f: auroc(pool, f) for f in FAMS}}
         for scen in ("uniform5", "realistic"):
             rng = np.random.default_rng(0)
             runs = [RE.one_window(pool, FAMS, RE.SCENARIOS[scen], rng, thr, thr_h, zs, zs_h, fb, cfg)
                     for _ in range(windows)]
             res[tag][scen] = {k: float(np.mean([r[k]["fire"] for r in runs])) for k in runs[0]}
+            res[tag][f"{scen}_asr"] = {k: float(np.mean([r[k]["asr"] for r in runs]))
+                                       for k in runs[0] if "asr" in runs[0][k]}
+            res[tag][f"{scen}_refusal"] = {k: float(np.mean([r[k]["refusal"] for r in runs]))
+                                           for k in runs[0] if "refusal" in runs[0][k]}
     for scen in ("uniform5", "realistic"):
         print(f"\n[{scen}] recall %, original -> paraphrased (benign FPR %)")
         print(f"{'framing':20s}{'AUROC':>14s}{'shared':>14s}{'oracle':>14s}{'hybrid':>14s}{'hyb FPR':>14s}")
