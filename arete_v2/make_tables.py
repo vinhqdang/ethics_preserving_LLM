@@ -412,3 +412,32 @@ def table_judge_para() -> None:
         lines.append(_hdr(row))
     lines += [r"\bottomrule", r"\end{tabular}"]
     (OUT / "judge_para.tex").write_text("\n".join(lines))
+
+
+def table_generation_two_judges(scenario: str = "realistic") -> None:
+    """Composed ASR (%) on half B under Qwen3Guard and Claude Haiku 5.5, k<=30, same windows."""
+    judges = (("Qwen3Guard-Gen-4B", _robust(scenario, "k30")),
+              ("Claude Haiku 5.5", json.loads((RES / "kmax30_posthoc_haiku.json").read_text())[scenario]))
+    fams = [f for f in list(FAMILIES) + list(FRESH_SHORT) if f not in NO_ASR]
+    rules = (("none", "None"), ("shared", "Shared"), ("hybrid", "Hybrid"))
+    cell = lambda d: rf"{100 * d[0]:.0f}\,{{\scriptsize[{100 * d[1]:.0f},{100 * d[2]:.0f}]}}"
+    lines = [r"\begin{tabular}{l" + "c" * 6 + "}", r"\toprule",
+             " & " + " & ".join(rf"\multicolumn{{3}}{{c}}{{{n}}}" for n, _ in judges) + r" \\",
+             r"\cmidrule(lr){2-4}\cmidrule(lr){5-7}",
+             _hdr(["Framing"] + [n for _, n in rules] * 2), r"\midrule"]
+    for f in fams:
+        cells = []
+        for _, su in judges:
+            for r, _ in rules:
+                d = su.get(f"{r}|harmful|{f}", {})
+                cells.append("--" if "asr" not in d else cell(d["asr"]))
+        lines.append(_hdr([ALL_SHORT[f]] + cells))
+    lines.append(r"\midrule")
+    ref = []
+    for _, su in judges:
+        for r, _ in rules:
+            d = su.get(f"{r}|benign|direct", {})
+            ref.append("--" if "refusal" not in d else f"{100 * d['refusal'][0]:.1f}")
+    lines.append(_hdr(["Over-refusal (plain)"] + ref))
+    lines += [r"\bottomrule", r"\end{tabular}"]
+    (OUT / f"generation_{scenario}_two_judges.tex").write_text("\n".join(lines))

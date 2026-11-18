@@ -63,7 +63,8 @@ def _labels(path, fams) -> tuple[dict, dict, dict, dict]:
     return un, uo, rn, ro
 
 
-def build_pool(model: str, fams, cfg: Config, score_fn) -> Pool:
+def build_pool(model: str, fams, cfg: Config, score_fn, judge: str = "qwen") -> Pool:
+    """judge: 'qwen' (Qwen3Guard-Gen-4B, the paper's judge) or 'haiku' (Claude Haiku 5.5, second judge)."""
     te = MultiCells(model, "test", fams)
     sl, sp = te.layers.index(cfg.score_layer), POSITIONS.index(cfg.score_view)
     cl, cp = te.layers.index(cfg.cluster_layer), POSITIONS.index(cfg.cluster_view)
@@ -74,8 +75,8 @@ def build_pool(model: str, fams, cfg: Config, score_fn) -> Pool:
         feats[k] = a[:, cl, cp].float().numpy()
     tag = model.replace("/", "__")
     un, uo, rn, ro = {}, {}, {}, {}
-    for name in (f"gen_{tag}_L14_full_judged.json", f"gen_fresh_{tag}_judged.json",
-                 f"gen_all_{tag}_judged.json"):
+    suffix = "_judged.json" if judge == "qwen" else "_judged_haiku.json"
+    for name in (f"gen_{tag}_L14_full{suffix}", f"gen_fresh_{tag}{suffix}", f"gen_all_{tag}{suffix}"):
         path = ROOT / "results_v2" / name
         if path.exists():
             for d, e in zip((un, uo, rn, ro), _labels(path, fams)):
@@ -141,14 +142,14 @@ def one_window(pool: Pool, fams, scenario, rng, thr, thr_h, zs, zs_h, fb, cfg) -
 
 
 def evaluate(model: str, scenario_name: str, windows: int, fpr: float, include_fresh: bool,
-             layer: int = 14) -> dict:
+             layer: int = 14, judge: str = "qwen") -> dict:
     cfg = Config(score_layer=layer, score_view="mean", cluster_layer=layer)
     fams = tuple(FAMILIES) + (tuple(FRESH_FAMILIES) if include_fresh else ())
     tr = MultiCells(model, "train", SEEN_FAMILIES)
     va = MultiCells(model, "val", SEEN_FAMILIES)
     score, thr, zs, fb = fit_gate(tr, va, list(SEEN_FAMILIES), cfg, fpr)
     _, thr_h, zs_h, _ = fit_gate(tr, va, list(SEEN_FAMILIES), cfg, fpr / 2)
-    pool = build_pool(model, fams, cfg, score)
+    pool = build_pool(model, fams, cfg, score, judge)
     rng = np.random.default_rng(0)
     runs = [one_window(pool, fams, SCENARIOS[scenario_name], rng, thr, thr_h, zs, zs_h, fb, cfg)
             for _ in range(windows)]
